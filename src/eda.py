@@ -1,10 +1,7 @@
 """
-Exploratory Data Analysis (EDA) for cryptocurrency returns.
-
-This script analyzes daily returns of major cryptocurrencies by computing
+Analyse returns by computing
 summary statistics, visualizing distributions, correlations, and rolling
-volatility. Outputs tables are saved in results/outputs/ and plots in
-results/figures/.
+volatility. 
 
 Extreme outliers are clipped for visualization to make comparisons readable.
 """
@@ -16,7 +13,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Paths
 DATA_FILE = "results/data/returns.csv"
 OUTPUTS_FOLDER = "results/outputs"
 FIGURES_FOLDER = "results/figures"
@@ -39,7 +35,7 @@ def summary_statistics(df: pd.DataFrame, output_path: str) -> None:
 
 
 def plot_distributions(df: pd.DataFrame, figures_folder: str) -> None:
-    """Generate histograms and KDE plots for each coin with shared x-axis."""
+    """Generate histograms for each coin with shared x-axis"""
     # Compute 1st and 99th percentiles across all coins for x-axis limits
     lower, upper = df.quantile(0.01).min(), df.quantile(0.99).max()
 
@@ -56,7 +52,7 @@ def plot_distributions(df: pd.DataFrame, figures_folder: str) -> None:
 
 
 def plot_boxplots(df: pd.DataFrame, figures_folder: str) -> None:
-    """Generate a boxplot for all coins with clipped extremes."""
+    """Generate a boxplot for all coins with clipped extremes"""
     # axis=1 aligns Series of min/max to columns
     df_clip = df.clip(lower=df.quantile(0.01), upper=df.quantile(0.99), axis=1)
     plt.figure(figsize=(12, 6))
@@ -95,7 +91,7 @@ def plot_rolling_volatility(df: pd.DataFrame, figures_folder: str, window: int =
     plt.title(f"{window}-Day Rolling Volatility (Clipped 1-99%, Log Scale)")
     plt.ylabel("Volatility")
     plt.xlabel("Date")
-    plt.yscale("log")  # <-- added log scale
+    plt.yscale("log")  # log scale
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(figures_folder, f"rolling_volatility_{window}d_log.png"))
@@ -105,7 +101,7 @@ def plot_rolling_volatility(df: pd.DataFrame, figures_folder: str, window: int =
 def main():
     df = load_returns(DATA_FILE)
 
-    # Save summary statistics
+    # Save 
     summary_statistics(df, os.path.join(OUTPUTS_FOLDER, "summary_statistics.csv"))
 
     # Plot distributions and boxplots
