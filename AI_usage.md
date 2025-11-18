@@ -4,6 +4,13 @@
 - GitHub Copilot and ChatGPT for assistance with structuring and completing code, and debugging assistance
 
 ## Significant Contributions
-1. cleaning and merging my data (src/merge_data.py)
+1. cleaning and merging data (src/merge_data.py)
    - AI helped with initial structure and code explaination
+
+2. EDA
+   - AI helped in generating code for exploring, computing and plotting data
+   - AI helped improving initially generated plots that had some issues
+   - intitial structure and ideas was human made
+   - final code is fully understood
+
    

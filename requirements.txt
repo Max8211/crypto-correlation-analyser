@@ -7,4 +7,3 @@ yfinance
 requests
 scipy
 plotly
-pycoingecko
