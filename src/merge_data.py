@@ -34,6 +34,8 @@ for coin in coins:
 
 # merge all coins, keeping only dates present in every dataset
 merged_df = pd.concat(all_dfs, axis=1, join="inner")
-merged_df.to_csv(os.path.join(data_folder, "clean_prices.csv"))
+output_folder = "results/data"
+os.makedirs(output_folder, exist_ok=True)
+merged_df.to_csv(os.path.join(output_folder, "clean_prices.csv"))
 
 print("Merged and cleaned datasets into clean_prices.csv")
