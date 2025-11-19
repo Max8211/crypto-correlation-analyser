@@ -71,6 +71,50 @@ def plot_average_correlation(corr_df: pd.DataFrame, figures_folder: str, title: 
     mean_corr.to_csv(os.path.join(OUTPUTS_FOLDER, fname.replace(".png", ".csv")))
     plt.close()
 
+def detect_correlation_regimes(corr_df: pd.DataFrame, title: str, threshold_std: float = 1.0) -> pd.DataFrame:
+    """
+    Identify high/low correlation regimes.
+    """
+    import os
+    import matplotlib.pyplot as plt
+
+    os.makedirs("results/outputs", exist_ok=True)
+    os.makedirs("results/figures", exist_ok=True)
+
+    # Compute mean correlation 
+    mean_corr = corr_df.groupby(level=0).mean().mean(axis=1)
+    mean_val = mean_corr.mean()
+    std_val = mean_corr.std()
+    high_thresh = mean_val + threshold_std * std_val
+    low_thresh = mean_val - threshold_std * std_val
+
+    regimes = pd.Series(index=mean_corr.index, dtype="object")
+    regimes[mean_corr >= high_thresh] = "high"
+    regimes[mean_corr <= low_thresh] = "low"
+    regimes[(mean_corr < high_thresh) & (mean_corr > low_thresh)] = "normal"
+
+    # Save
+    regimes_df = pd.DataFrame({"mean_correlation": mean_corr, "regime": regimes})
+    csv_path = os.path.join("results/outputs", f"{title.lower().replace(' ','_')}_regimes.csv")
+    regimes_df.to_csv(csv_path)
+
+    # Plot shaded regions
+    plt.figure(figsize=(12,6))
+    plt.plot(mean_corr.index, mean_corr.values, color="navy", label="Mean Correlation")
+    for i, label in regimes.items():
+        if label == "high":
+            plt.axvspan(i, i, color="red", alpha=0.1)
+        elif label == "low":
+            plt.axvspan(i, i, color="green", alpha=0.1)
+    plt.title(title)
+    plt.xlabel("Date")
+    plt.ylabel("Mean Correlation")
+    plt.tight_layout()
+    plt.savefig(os.path.join("results/figures", f"{title.lower().replace(' ','_')}_shaded.png"))
+    plt.close()
+
+    return regimes_df
+
 
 def main():
     """Load returns, compute rolling/EWMA correlations, and plot results"""
@@ -87,6 +131,10 @@ def main():
     ewma_corr.to_csv(os.path.join(OUTPUTS_FOLDER, f"ewma_corr_{EWMA_SPAN}d.csv"))
     plot_selected_pairs(ewma_corr, KEY_PAIRS, FIGURES_FOLDER, f"EWMA {EWMA_SPAN}-Day")
     plot_average_correlation(ewma_corr, FIGURES_FOLDER, f"EWMA {EWMA_SPAN}-Day")
+    
+    # detect regimes
+    detect_correlation_regimes(rolling_corr, f"Rolling {ROLLING_WINDOW}-Day Regimes")
+    detect_correlation_regimes(ewma_corr, f"EWMA {EWMA_SPAN}-Day Regimes")
 
 
 if __name__ == "__main__":

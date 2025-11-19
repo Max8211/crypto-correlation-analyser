@@ -13,4 +13,9 @@
    - intitial structure and ideas was human made
    - final code is fully understood
 
+3. Correlation analysis
+   - AI helped with code issues and difficult parts of the script
+
+
+
    
