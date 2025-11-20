@@ -16,6 +16,10 @@
 3. Correlation analysis
    - AI helped with code issues and difficult parts of the script
 
+4. Clustering
+   - AI assissted in creating script structure
+   - AI helped adding/updating some code lines after reapeated errors
+
 
 
    
