@@ -20,6 +20,12 @@
    - AI assissted in creating script structure
    - AI helped adding/updating some code lines after reapeated errors
 
+5. Regime analysis
+   - AI helped generating sstructure for some difficult part of the code
+   - AI assissted in plot generation
+   - AI helped refining the script
+   - final code is fully understood
+
 
 
    
