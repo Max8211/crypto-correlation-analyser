@@ -34,37 +34,6 @@ def summary_statistics(df: pd.DataFrame, output_path: str) -> None:
     stats.to_csv(output_path)
 
 
-def plot_distributions(df: pd.DataFrame, figures_folder: str) -> None:
-    """Generate histograms for each coin with shared x-axis"""
-    # Compute 1st and 99th percentiles across all coins for x-axis limits
-    lower, upper = df.quantile(0.01).min(), df.quantile(0.99).max()
-
-    for coin in df.columns:
-        plt.figure(figsize=(8, 4))
-        sns.histplot(df[coin].clip(lower, upper), bins=50, kde=True, color="skyblue")
-        plt.title(f"{coin.capitalize()} Return Distribution")
-        plt.xlabel("Daily Return")
-        plt.ylabel("Frequency")
-        plt.xlim(lower, upper)
-        plt.tight_layout()
-        plt.savefig(os.path.join(figures_folder, f"{coin}_distribution.png"))
-        plt.close()
-
-
-def plot_boxplots(df: pd.DataFrame, figures_folder: str) -> None:
-    """Generate a boxplot for all coins with clipped extremes"""
-    # axis=1 aligns Series of min/max to columns
-    df_clip = df.clip(lower=df.quantile(0.01), upper=df.quantile(0.99), axis=1)
-    plt.figure(figsize=(12, 6))
-    sns.boxplot(data=df_clip, palette="Set2")
-    plt.title("Daily Returns Boxplot (Clipped 1-99%)")
-    plt.ylabel("Daily Return")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figures_folder, "boxplot_returns.png"))
-    plt.close()
-
-
 def correlation_heatmap(df: pd.DataFrame, figures_folder: str, output_path: str) -> None:
     """Compute correlation matrix and plot heatmap."""
     corr = df.corr()
@@ -103,10 +72,6 @@ def main():
 
     # Save 
     summary_statistics(df, os.path.join(OUTPUTS_FOLDER, "summary_statistics.csv"))
-
-    # Plot distributions and boxplots
-    plot_distributions(df, FIGURES_FOLDER)
-    plot_boxplots(df, FIGURES_FOLDER)
 
     # Compute and plot correlation heatmap
     correlation_heatmap(

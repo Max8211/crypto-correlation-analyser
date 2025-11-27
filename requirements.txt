@@ -3,7 +3,3 @@ numpy
 matplotlib
 seaborn
 scikit-learn
-yfinance
-requests
-scipy
-plotly
