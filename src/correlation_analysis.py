@@ -71,6 +71,7 @@ def plot_average_correlation(corr_df: pd.DataFrame, figures_folder: str, title: 
     mean_corr.to_csv(os.path.join(OUTPUTS_FOLDER, fname.replace(".png", ".csv")))
     plt.close()
 
+
 def detect_correlation_regimes(corr_df: pd.DataFrame, title: str, threshold_std: float = 1.0) -> pd.DataFrame:
     """
     Identify high/low correlation regimes.
