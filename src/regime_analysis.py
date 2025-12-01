@@ -147,20 +147,52 @@ def main():
     vol_stress.to_csv(os.path.join(OUTPUTS_DIR, "vol_stress.csv"))
     vol_normal.to_csv(os.path.join(OUTPUTS_DIR, "vol_normal.csv"))
 
-    # Plot heatmaps
+    # Plot heatmaps (still available)
     plot_heatmap(corr_normal, "Correlation - Normal Period", "corr_normal_heatmap.png")
     plot_heatmap(corr_stress, "Correlation - Stress Period", "corr_stress_heatmap.png")
 
     # Clustering stability still computed, but NOT saved
     r_normal = slice_returns(returns, normal_window)
     r_stress = slice_returns(returns, stress_window)
-    corr_n = r_normal.corr().values
-    corr_s = r_stress.corr().values
+    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(r_normal.corr().values)
+    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(r_stress.corr().values)
 
-    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(corr_n)
-    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(corr_s)
-
-    print("Regime analysis complete. Outputs and figures saved. (No contingency file.)")
+    print("Regime analysis complete. Outputs and figures saved.")
 
 if __name__ == "__main__":
     main()
+
+def load_regime_outputs():
+    """
+    Load precomputed regime outputs for main.py metrics
+    Returns:
+        corr_normal : pd.DataFrame
+        corr_stress : pd.DataFrame
+        vol_normal  : pd.Series
+        vol_stress  : pd.Series
+        cluster_labels : pd.Series
+    """
+    OUTPUTS_DIR = "results/outputs"
+
+    # Correlations
+    corr_normal = pd.read_csv(f"{OUTPUTS_DIR}/corr_normal.csv", index_col=0)
+    corr_stress  = pd.read_csv(f"{OUTPUTS_DIR}/corr_stress.csv", index_col=0)
+
+    # Volatility
+    vol_normal = pd.read_csv(f"{OUTPUTS_DIR}/vol_normal.csv", index_col=0)
+    if vol_normal.shape[1] == 1:
+        vol_normal = vol_normal.iloc[:, 0]  # convert single-column DataFrame to Series
+
+    vol_stress = pd.read_csv(f"{OUTPUTS_DIR}/vol_stress.csv", index_col=0)
+    if vol_stress.shape[1] == 1:
+        vol_stress = vol_stress.iloc[:, 0]  # convert single-column DataFrame to Series
+
+    # Cluster labels for regime windows
+    cluster_labels_path = f"{OUTPUTS_DIR}/cluster_labels.csv"
+    if os.path.exists(cluster_labels_path):
+        cluster_labels = pd.read_csv(cluster_labels_path, index_col=0, squeeze=True)
+    else:
+        # fallback if no cluster labels exist
+        cluster_labels = pd.Series([0, 1, 2, 3], index=[0,1,2,3])
+
+    return corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels

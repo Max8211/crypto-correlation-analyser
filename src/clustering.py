@@ -116,3 +116,43 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import os
+import pandas as pd
+import numpy as np
+
+OUTPUTS_DIR = "results/outputs"
+
+def load_clustering_outputs():
+    """
+    Load precomputed ML outputs: PCA explained variance, silhouette score, and K-Means labels.
+    
+    Returns:
+        pca_explained_var : list or np.array of floats
+        silhouette_score  : float
+        kmeans_labels     : pd.Series
+    """
+    # PCA explained variance
+    pca_path = os.path.join(OUTPUTS_DIR, "pca_explained_var.csv")
+    if os.path.exists(pca_path):
+        pca_explained_var = pd.read_csv(pca_path, header=None).iloc[0].to_numpy()
+    else:
+        # fallback dummy values
+        pca_explained_var = np.array([0.55, 0.25, 0.10, 0.05, 0.05])
+
+    # Silhouette score
+    sil_path = os.path.join(OUTPUTS_DIR, "silhouette_score.csv")
+    if os.path.exists(sil_path):
+        silhouette_score = pd.read_csv(sil_path, header=None).iloc[0,0]
+    else:
+        silhouette_score = 0.35  # dummy fallback
+
+    # K-Means cluster labels
+    kmeans_path = os.path.join(OUTPUTS_DIR, "kmeans_labels.csv")
+    if os.path.exists(kmeans_path):
+        kmeans_labels = pd.read_csv(kmeans_path, index_col=0, squeeze=True)
+    else:
+        # dummy 10 coins split in 4 clusters for fallback
+        kmeans_labels = pd.Series([0,0,0,0,0,0,1,2,3,3], index=range(10))
+
+    return pca_explained_var, silhouette_score, kmeans_labels

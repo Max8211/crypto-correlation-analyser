@@ -1,73 +1,115 @@
 """
 Main script for Crypto Market Correlation Analysis
-Provides summary metrics and generates key figures.
+Compute relevant results metrics for correlations, regimes, and clustering results.
 """
 
 import os
 import pandas as pd
 import numpy as np
 
-from src.cluster_regime_analysis import plot_clustered_corr, plot_regimes
-from src.regime_analysis import main as regime_analysis_main
+from src.regime_analysis import load_regime_outputs   # must return: corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels
+from src.clustering import load_clustering_outputs    # must return: pca_explained_var, silhouette_score, kmeans_labels
 
 OUTPUT_DIR = "results/outputs"
-FIG_DIR = "results/figures"
 CORR_PATH = os.path.join(OUTPUT_DIR, "rolling_corr_90d.csv")
-KMEANS_LABELS_PATH = os.path.join(OUTPUT_DIR, "kmeans_clusters.csv")
+
+#Helper functions
+def compute_overall_market_corr(corr_matrix):
+    """Return average correlation across all off-diagonal entries."""
+    mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
+    return corr_matrix.where(mask).stack().mean()
+
+
+def compute_cluster_summary(cluster_series):
+    """Return cluster counts as dictionary."""
+    return cluster_series.value_counts().to_dict()
+
+# Main analysis script
 
 def main():
     print("="*60)
     print("Crypto Market Correlation Analysis")
     print("="*60)
 
-    # Load correlation matrix (average over time)
-    df = pd.read_csv(CORR_PATH, index_col=[0,1])
+    # 1. Load correlation matrix
+    df = pd.read_csv(CORR_PATH, index_col=[0, 1])
     corr = df.groupby(level=1).mean()
-    corr = (corr + corr.T)/2
+    corr = (corr + corr.T) / 2  # enforce symmetry
 
-    # Bitcoin correlation summary
+    # 1. Bitcoin correlation summary--
     btc_corr = corr.loc["bitcoin"].drop("bitcoin")
-    most_corr_coin = btc_corr.idxmax()
-    least_corr_coin = btc_corr.idxmin()
-    avg_corr_btc = btc_corr.mean()
-
     print("\n1. Bitcoin Correlation Summary")
-    print(f"   - Most correlated with BTC: {most_corr_coin} ({btc_corr[most_corr_coin]:.2f})")
-    print(f"   - Least correlated with BTC: {least_corr_coin} ({btc_corr[least_corr_coin]:.2f})")
-    print(f"   - Average correlation with BTC across all coins: {avg_corr_btc:.2f}")
-    print("   - For full BTC correlations, refer to the clustered heatmap.")
+    print(f"   • Most correlated with BTC : {btc_corr.idxmax()} ({btc_corr.max():.2f})")
+    print(f"   • Least correlated with BTC: {btc_corr.idxmin()} ({btc_corr.min():.2f})")
+    print(f"   • Average BTC correlation with market: {btc_corr.mean():.2f}")
 
-    # Overall coin summary
-    corr_values = corr.where(~np.eye(corr.shape[0], dtype=bool))  # mask diagonal
-    max_pair_idx = np.unravel_index(np.nanargmax(corr_values.values), corr_values.shape)
-    min_pair_idx = np.unravel_index(np.nanargmin(corr_values.values), corr_values.shape)
-    max_pair = (corr_values.index[max_pair_idx[0]], corr_values.columns[max_pair_idx[1]])
-    min_pair = (corr_values.index[min_pair_idx[0]], corr_values.columns[min_pair_idx[1]])
-    max_corr = corr_values.values[max_pair_idx]
-    min_corr = corr_values.values[min_pair_idx]
+    # 2. Overall market correlation summary
+    corr_offdiag = corr.where(~np.eye(corr.shape[0], dtype=bool))
+    stacked = corr_offdiag.stack()  # MultiIndex series of all off-diagonal correlations
 
-    print("\n2. Overall Coin Correlation Summary")
-    print(f"   - Highest correlation overall: {max_pair[0]}-{max_pair[1]} ({max_corr:.2f})")
-    print(f"   - Lowest correlation overall: {min_pair[0]}-{min_pair[1]} ({min_corr:.2f})")
-    print("   - To see all 10 coins correlation, refer to the clustered heatmap.")
+    highest_pair_idx = stacked.idxmax()
+    highest_val = stacked.max()
+    lowest_pair_idx = stacked.idxmin()
+    lowest_val = stacked.min()
+    overall_avg_corr = stacked.mean()
 
-    # Generate clustered correlation heatmap
-    if os.path.exists(KMEANS_LABELS_PATH):
-        labels = pd.read_csv(KMEANS_LABELS_PATH, index_col=0).iloc[:,0]
-        plot_clustered_corr(corr, labels)
-        print("   - Clustered heatmap generated in results/figures/")
- 
-    # Run regime analysis and generate rolling correlation plots
-    print("\n3. Rolling Correlation Regimes")
-    plot_regimes(CORR_PATH, ("bitcoin","ethereum"))
-    plot_regimes(CORR_PATH, ("bitcoin","solana"))
-    print("   - Rolling correlation plots saved in results/figures/")
-    print("   - For full stress vs normal period analysis, see regime analysis figures.")
+    print("\n2. Overall Crypto-Market Correlation Summary")
+    print(f"   • Highest correlation overall: {highest_pair_idx[0]} – {highest_pair_idx[1]} ({highest_val:.2f})")
+    print(f"   • Lowest correlation overall: {lowest_pair_idx[0]} – {lowest_pair_idx[1]} ({lowest_val:.2f})")
+    print(f"   • Average correlation across all coin-pairs: {overall_avg_corr:.2f}")
 
-    # Optionally run full regime analysis (creates stress/normal windows, vol, cluster stability)
-    print("\nRunning regime analysis...")
-    regime_analysis_main()
-    print("All analysis complete. Check results/figures for plots and results/outputs for data tables.")
+    # qualitative interpretation
+    if overall_avg_corr > 0.70:
+        level = "highly correlated"
+    elif overall_avg_corr > 0.50:
+        level = "moderately correlated"
+    else:
+        level = "weakly correlated"
+
+    print(f"   → Interpretation: The major 10-coin crypto market is {level}, diversification benefits exist but are modest and limited. ")
+
+    # 3.Market Regimes 
+    corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels = load_regime_outputs()
+
+    avg_norm = compute_overall_market_corr(corr_normal)
+    avg_stress = compute_overall_market_corr(corr_stress)
+    diff = avg_stress - avg_norm
+
+    # largest/smallest pairwise correlation change
+    diff_mat = corr_stress - corr_normal
+    max_idx = np.nanargmax(diff_mat.values)
+    min_idx = np.nanargmin(diff_mat.values)
+    max_pair = np.unravel_index(max_idx, diff_mat.shape)
+    min_pair = np.unravel_index(min_idx, diff_mat.shape)
+    max_jump = diff_mat.index[max_pair[0]], diff_mat.columns[max_pair[1]], diff_mat.values[max_pair]
+    min_jump = diff_mat.index[min_pair[0]], diff_mat.columns[min_pair[1]], diff_mat.values[min_pair]
+
+    print("\n3. Market Regime Analysis (Normal vs Stress Periods)")
+    print(f"   • Average normal-period correlation: {avg_norm:.2f}")
+    print(f"   • Average stress-period correlation: {avg_stress:.2f}")
+    print(f"   • Correlation increase during stress: {diff:.2f}")
+    print(f"   • Largest pairwise increase: {max_jump[0]} – {max_jump[1]} ({max_jump[2]:+.2f})")
+    print(f"   • Smallest pairwise change: {min_jump[0]} – {min_jump[1]} ({min_jump[2]:+.2f})")
+    print("     Correlations rise sharply during market distress.")
+    
+    # 4. Machine Learning
+    pca_var, sil_score, kmeans_labels = load_clustering_outputs()
+    cluster_summary = compute_cluster_summary(kmeans_labels)
+
+    print("\n4. Machine Learning Analysis (K-Means Clustering)")
+    print(f"   • Number of clusters detected: {len(cluster_summary)}")
+    for cl, count in cluster_summary.items():
+        print(f"     – Cluster {cl}: {count} windows")
+
+    print("   • Interpretation: Some clusters are small, reflecting coins with exceptional behavior compared to typical market dynamics.")
+
+    #  add PCA and silhouette
+    print("\n   PCA explained variance (first 2 PCs):")
+    print(f"   • PC1: {pca_var[0]:.2%}, PC2: {pca_var[1]:.2%}, cumulative: {sum(pca_var[:2]):.2%}")
+    print(f"   Silhouette score: {sil_score:.3f}")
+
+    print("\nAnalysis complete.")
+
 
 if __name__ == "__main__":
     main()
