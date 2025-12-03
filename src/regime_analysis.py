@@ -4,7 +4,7 @@ and compute correlations and volatility during stress vs normal periods.
 """
 
 import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -12,9 +12,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 
+
 RETURNS_PATH = "results/data/returns.csv"
 OUTPUTS_DIR = "results/outputs"
 FIGURES_DIR = "results/figures"
+
+#stress threshold which determines what drawdown counts as stress
+STRESS_THRESHOLD = -0.30  
+
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
@@ -43,6 +48,8 @@ def detect_stress_periods(drawdown: pd.Series,
     windows = []
     in_window = False
     start = None
+    prev_ts = None
+    
     for ts, val in drawdown.items():
         if val <= stress_thresh and not in_window:
             in_window = True
@@ -53,6 +60,7 @@ def detect_stress_periods(drawdown: pd.Series,
                 windows.append((start, end))
             in_window = False
         prev_ts = ts
+        
     if in_window:
         end = prev_ts
         if (end - start).days + 1 >= min_len:
@@ -97,16 +105,42 @@ def main():
     drawdown.to_csv(os.path.join(OUTPUTS_DIR, "market_drawdown.csv"))
 
     # Detect stress periods
-    stress_windows = detect_stress_periods(drawdown, stress_thresh=-0.10)
+    # UPDATED: Using the global constant STRESS_THRESHOLD
+    print(f"Detecting stress periods with threshold: {STRESS_THRESHOLD}")
+    stress_windows = detect_stress_periods(drawdown, stress_thresh=STRESS_THRESHOLD)
 
-    # Save detected stress periods
+    # Save detected stress periods and normal periods
     regimes_df = []
     for start, end in stress_windows:
         regimes_df.append({"kind": "stress", "start": start, "end": end})
+
+    # Create normal periods (gaps between stress windows)
+    all_dates = drawdown.index
+    stress_intervals = [(s, e) for s, e in stress_windows]
+    
+    if stress_intervals:
+        prev_end = all_dates[0] - pd.Timedelta(days=1)
+        for s, e in stress_intervals:
+            if (s - prev_end).days > 1:
+                normal_start = prev_end + pd.Timedelta(days=1)
+                normal_end = s - pd.Timedelta(days=1)
+                regimes_df.append({"kind": "normal", "start": normal_start, "end": normal_end})
+            prev_end = e
+        # Last period after the final stress window
+        if prev_end < all_dates[-1]:
+            regimes_df.append({"kind": "normal", "start": prev_end + pd.Timedelta(days=1), "end": all_dates[-1]})
+    else:
+        # If no stress periods found, entire history is normal
+        regimes_df.append({"kind": "normal", "start": all_dates[0], "end": all_dates[-1]})
+
     if regimes_df:
-        pd.DataFrame(regimes_df).to_csv(os.path.join(OUTPUTS_DIR, "detected_regimes.csv"))
+        pd.DataFrame(regimes_df).to_csv(os.path.join(OUTPUTS_DIR, "detected_regimes.csv"), index=False)
 
     # Pick representative stress window
+    if not stress_windows:
+        print("No stress windows detected with current threshold. Exiting.")
+        return
+
     stress_window = pick_representative_period(stress_windows)
     stress_len = (stress_window[1] - stress_window[0]).days + 1
 
@@ -117,10 +151,13 @@ def main():
         start = center - pd.Timedelta(days=stress_len // 2)
         end = start + pd.Timedelta(days=stress_len - 1)
         if start >= valid_dates[0] and end <= valid_dates[-1]:
-            if drawdown.loc[start:end].abs().max() < 0.02:
+            # Ensure the candidate window doesn't have deep drawdown
+            if drawdown.loc[start:end].abs().max() < abs(STRESS_THRESHOLD / 5): # heuristic check
                 candidate = (start, end)
                 break
+    
     if candidate is None:
+        # Fallback if no perfect normal window found
         candidate = (valid_dates[0], valid_dates[0] + pd.Timedelta(days=stress_len - 1))
     normal_window = candidate
 
@@ -140,12 +177,13 @@ def main():
     # Difference heatmap
     fig, ax = plt.subplots(figsize=(9, 7))
     sns.heatmap(corr_diff, annot=True, fmt=".2f", cmap="coolwarm", center=0,
-            vmin=-0.5, vmax=0.5, ax=ax)  # <-- adjust these limits
+            vmin=-0.5, vmax=0.5, ax=ax)
     ax.set_title("Correlation Difference (Stress - Normal)")
     fig.tight_layout()
     fig.savefig(os.path.join(FIGURES_DIR, "corr_diff_heatmap.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {os.path.join(FIGURES_DIR, 'corr_diff_heatmap.png')}")
+    
     # Clustering stability
     r_normal = slice_returns(returns, normal_window)
     r_stress = slice_returns(returns, stress_window)

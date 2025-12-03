@@ -26,6 +26,10 @@
    - AI helped refining the script
    - final code is fully understood
 
+6. Regime prevision
+   - AI helped generate supervised ML code
+   - AI helped refining code to get more accurate results
+
 
 
    

@@ -29,22 +29,31 @@ def load_returns(file_path: str) -> pd.DataFrame:
 
 
 def rolling_correlation(df: pd.DataFrame, window: int) -> pd.DataFrame:
-    """Compute rolling correlation matrix using a fixed window"""
-    return df.rolling(window).corr()
+    """Compute rolling correlation matrix, output one row per timestamp, coins as columns"""
+    # Rolling correlation produces multi-index
+    corr = df.rolling(window).corr()
+    # Take mean correlation of each coin with all coins
+    corr_mean = corr.groupby(level=0).mean()
+    # Forward-fill missing values
+    corr_mean = corr_mean.ffill().bfill()
+    return corr_mean
 
 
 def ewma_correlation(df: pd.DataFrame, span: int) -> pd.DataFrame:
-    """EWMA"""
-    return df.ewm(span=span).corr()
+    """EWMA correlation, one row per timestamp, coins as columns"""
+    corr = df.ewm(span=span).corr()
+    corr_mean = corr.groupby(level=0).mean()
+    corr_mean = corr_mean.ffill().bfill()
+    return corr_mean
 
 
 def plot_selected_pairs(corr_df: pd.DataFrame, pairs: List[tuple], figures_folder: str, title: str):
     """Plot correlation for selected key coin pairs"""
     plt.figure(figsize=(12, 6))
     for c1, c2 in pairs:
-        # extract correlation series for this pair
-        series = corr_df.loc[:, c1].loc[:, c2]
-        plt.plot(series.index, series.values, label=f"{c1.upper()}–{c2.upper()}")
+        col_name = f"{c1}-{c2}"
+        if col_name in corr_df.columns:
+            plt.plot(corr_df.index, corr_df[col_name].values, label=f"{c1.upper()}–{c2.upper()}")
     plt.title(title)
     plt.xlabel("Date")
     plt.ylabel("Correlation")
@@ -58,9 +67,8 @@ def plot_selected_pairs(corr_df: pd.DataFrame, pairs: List[tuple], figures_folde
 
 def plot_average_correlation(corr_df: pd.DataFrame, figures_folder: str, title: str):
     """Plot mean correlation across all coins to identify correlation regimes"""
-    mean_corr = corr_df.groupby(level=0).mean()
     plt.figure(figsize=(12, 6))
-    plt.plot(mean_corr.index, mean_corr.mean(axis=1), color="navy")
+    plt.plot(corr_df.index, corr_df.mean(axis=1), color="navy")
     plt.title(title)
     plt.xlabel("Date")
     plt.ylabel("Mean Correlation")
@@ -68,7 +76,7 @@ def plot_average_correlation(corr_df: pd.DataFrame, figures_folder: str, title: 
     # save plot and CSV
     fname = title.lower().replace(" ", "_") + "_mean.png"
     plt.savefig(os.path.join(figures_folder, fname))
-    mean_corr.to_csv(os.path.join(OUTPUTS_FOLDER, fname.replace(".png", ".csv")))
+    corr_df.mean(axis=1).to_csv(os.path.join(OUTPUTS_FOLDER, fname.replace(".png", ".csv")))
     plt.close()
 
 
@@ -83,7 +91,7 @@ def detect_correlation_regimes(corr_df: pd.DataFrame, title: str, threshold_std:
     os.makedirs("results/figures", exist_ok=True)
 
     # Compute mean correlation 
-    mean_corr = corr_df.groupby(level=0).mean().mean(axis=1)
+    mean_corr = corr_df.mean(axis=1)
     mean_val = mean_corr.mean()
     std_val = mean_corr.std()
     high_thresh = mean_val + threshold_std * std_val
