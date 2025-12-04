@@ -1,6 +1,7 @@
 """
-Detect stress windows from a market index (built from returns),
-and compute correlations and volatility during stress vs normal periods.
+Detect stress windows using Downside Volatility.
+Threshold: Top 20% (0.80).
+Visualization: Standard Heatmaps (Clean, no numbers, no dendrograms).
 """
 
 import os
@@ -12,19 +13,22 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 
-
+# --- CONFIGURATION ---
 RETURNS_PATH = "results/data/returns.csv"
 OUTPUTS_DIR = "results/outputs"
 FIGURES_DIR = "results/figures"
 
-#stress threshold which determines what drawdown counts as stress
-STRESS_THRESHOLD = -0.30  
+# CRYPTO SETTINGS
+VOL_WINDOW = 14  
+# Top 20% of downside volatility days = Stress
+VOL_PERCENTILE = 0.85 
 
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
 def load_returns(path: str) -> pd.DataFrame:
-    return pd.read_csv(path, index_col=0, parse_dates=True)
+    df = pd.read_csv(path, index_col=0, parse_dates=True)
+    return df
 
 def build_market_index(returns: pd.DataFrame) -> pd.Series:
     eq_ret = returns.mean(axis=1)
@@ -32,29 +36,32 @@ def build_market_index(returns: pd.DataFrame) -> pd.Series:
     idx.name = "market_index"
     return idx
 
-def compute_drawdown(index: pd.Series) -> pd.Series:
-    rolling_max = index.cummax()
-    drawdown = (index - rolling_max) / rolling_max
-    drawdown.name = "drawdown"
-    return drawdown
+def compute_downside_volatility(returns: pd.DataFrame, window: int) -> pd.Series:
+    market_ret = returns.mean(axis=1)
+    neg_ret = market_ret.copy()
+    neg_ret[neg_ret > 0] = 0
+    
+    downside_vol = neg_ret.rolling(window=window).std()
+    downside_vol.name = "downside_volatility"
+    return downside_vol
 
-def detect_stress_periods(drawdown: pd.Series,
-                          stress_thresh: float = -0.10,
-                          min_len: int = 3) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
-    """
-    Detect contiguous windows where drawdown exceeds the stress threshold.
-    Returns a list of (start, end) tuples.
-    """
+def detect_stress_periods(series: pd.Series,
+                          threshold: float,
+                          min_len: int = 2) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
     windows = []
     in_window = False
     start = None
     prev_ts = None
     
-    for ts, val in drawdown.items():
-        if val <= stress_thresh and not in_window:
+    clean_series = series.dropna()
+
+    for ts, val in clean_series.items():
+        is_stress = (val >= threshold)
+
+        if is_stress and not in_window:
             in_window = True
             start = ts
-        elif val > stress_thresh and in_window:
+        elif not is_stress and in_window:
             end = prev_ts
             if (end - start).days + 1 >= min_len:
                 windows.append((start, end))
@@ -81,12 +88,19 @@ def slice_returns(returns: pd.DataFrame, window: Tuple[pd.Timestamp, pd.Timestam
 def regime_correlation_and_volatility(returns: pd.DataFrame, window: Tuple[pd.Timestamp, pd.Timestamp]):
     slice_r = slice_returns(returns, window)
     corr = slice_r.corr()
-    vol = slice_r.std()
+    vol = slice_r.std() 
     return corr, vol
 
 def plot_heatmap(matrix: pd.DataFrame, title: str, fname: str):
-    fig, ax = plt.subplots(figsize=(9, 7))
-    sns.heatmap(matrix, annot=True, fmt=".2f", cmap="coolwarm", vmin=0.2, vmax=1.0, ax=ax)
+    """
+    Standard Heatmap. No dendrograms. No annotations.
+    """
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # annot=False (No numbers)
+    # cmap="coolwarm" (Standard Red/Blue)
+    sns.heatmap(matrix, annot=False, cmap="coolwarm", vmin=0.0, vmax=1.0, ax=ax)
+    
     ax.set_title(title)
     fig.tight_layout()
     path = os.path.join(FIGURES_DIR, fname)
@@ -97,25 +111,31 @@ def plot_heatmap(matrix: pd.DataFrame, title: str, fname: str):
 def main():
     returns = load_returns(RETURNS_PATH)
 
-    # Index + drawdown
     market_idx = build_market_index(returns)
     market_idx.to_csv(os.path.join(OUTPUTS_DIR, "market_index.csv"))
+    
+    # 1. Compute DOWNSIDE Volatility
+    rolling_downside = compute_downside_volatility(returns, window=VOL_WINDOW)
+    rolling_downside.to_csv(os.path.join(OUTPUTS_DIR, "market_downside_vol.csv"))
 
-    drawdown = compute_drawdown(market_idx)
-    drawdown.to_csv(os.path.join(OUTPUTS_DIR, "market_drawdown.csv"))
+    # 2. Determine Threshold
+    vol_threshold = rolling_downside.quantile(VOL_PERCENTILE)
+    print(f"Downside Vol Threshold (Top {100*(1-VOL_PERCENTILE):.0f}%): {vol_threshold:.5f}")
 
-    # Detect stress periods
-    # UPDATED: Using the global constant STRESS_THRESHOLD
-    print(f"Detecting stress periods with threshold: {STRESS_THRESHOLD}")
-    stress_windows = detect_stress_periods(drawdown, stress_thresh=STRESS_THRESHOLD)
+    # 3. Detect Stress Periods
+    stress_windows = detect_stress_periods(
+        rolling_downside, 
+        threshold=vol_threshold,
+        min_len=2 
+    )
 
-    # Save detected stress periods and normal periods
+    # Save Regimes
     regimes_df = []
     for start, end in stress_windows:
         regimes_df.append({"kind": "stress", "start": start, "end": end})
 
-    # Create normal periods (gaps between stress windows)
-    all_dates = drawdown.index
+    # Normal periods (gaps)
+    all_dates = rolling_downside.dropna().index
     stress_intervals = [(s, e) for s, e in stress_windows]
     
     if stress_intervals:
@@ -124,78 +144,72 @@ def main():
             if (s - prev_end).days > 1:
                 normal_start = prev_end + pd.Timedelta(days=1)
                 normal_end = s - pd.Timedelta(days=1)
-                regimes_df.append({"kind": "normal", "start": normal_start, "end": normal_end})
+                if normal_start <= normal_end:
+                     regimes_df.append({"kind": "normal", "start": normal_start, "end": normal_end})
             prev_end = e
-        # Last period after the final stress window
         if prev_end < all_dates[-1]:
             regimes_df.append({"kind": "normal", "start": prev_end + pd.Timedelta(days=1), "end": all_dates[-1]})
     else:
-        # If no stress periods found, entire history is normal
-        regimes_df.append({"kind": "normal", "start": all_dates[0], "end": all_dates[-1]})
+        if not all_dates.empty:
+            regimes_df.append({"kind": "normal", "start": all_dates[0], "end": all_dates[-1]})
 
     if regimes_df:
         pd.DataFrame(regimes_df).to_csv(os.path.join(OUTPUTS_DIR, "detected_regimes.csv"), index=False)
+        print(f"Detected {len(stress_windows)} stress windows.")
 
-    # Pick representative stress window
     if not stress_windows:
-        print("No stress windows detected with current threshold. Exiting.")
+        print("No stress windows detected. Exiting.")
         return
 
+    # 4. Pick representative periods
     stress_window = pick_representative_period(stress_windows)
     stress_len = (stress_window[1] - stress_window[0]).days + 1
 
-    # Normal window: period with low drawdown, same length as stress
-    valid_dates = drawdown.index
+    # Find Normal window
+    valid_dates = rolling_downside.dropna().index
     candidate = None
+    
     for center in valid_dates:
         start = center - pd.Timedelta(days=stress_len // 2)
         end = start + pd.Timedelta(days=stress_len - 1)
+        
         if start >= valid_dates[0] and end <= valid_dates[-1]:
-            # Ensure the candidate window doesn't have deep drawdown
-            if drawdown.loc[start:end].abs().max() < abs(STRESS_THRESHOLD / 5): # heuristic check
+            window_vol = rolling_downside.loc[start:end]
+            if window_vol.max() < vol_threshold:
                 candidate = (start, end)
                 break
     
     if candidate is None:
-        # Fallback if no perfect normal window found
         candidate = (valid_dates[0], valid_dates[0] + pd.Timedelta(days=stress_len - 1))
     normal_window = candidate
 
-    # Compute correlations and volatility
+    print(f"Stress Window: {stress_window}")
+    print(f"Normal Window: {normal_window}")
+
+    # Compute stats
     corr_stress, vol_stress = regime_correlation_and_volatility(returns, stress_window)
     corr_normal, vol_normal = regime_correlation_and_volatility(returns, normal_window)
 
     corr_stress.to_csv(os.path.join(OUTPUTS_DIR, "corr_stress.csv"))
     corr_normal.to_csv(os.path.join(OUTPUTS_DIR, "corr_normal.csv"))
-    vol_stress.to_csv(os.path.join(OUTPUTS_DIR, "vol_stress.csv"))
-    vol_normal.to_csv(os.path.join(OUTPUTS_DIR, "vol_normal.csv"))
-
-    # Plot heatmaps
-    plot_heatmap(corr_normal, "Correlation - Normal Period", "corr_normal_heatmap.png")
-    plot_heatmap(corr_stress, "Correlation - Stress Period", "corr_stress_heatmap.png")
+    
+    # Standard Heatmaps
+    plot_heatmap(corr_normal, "Correlation - Normal", "corr_normal_heatmap.png")
+    plot_heatmap(corr_stress, "Correlation - Stress", "corr_stress_heatmap.png")
+    
+    # Diff Heatmap
     corr_diff = corr_stress - corr_normal
-    # Difference heatmap
-    fig, ax = plt.subplots(figsize=(9, 7))
-    sns.heatmap(corr_diff, annot=True, fmt=".2f", cmap="coolwarm", center=0,
-            vmin=-0.5, vmax=0.5, ax=ax)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(corr_diff, annot=False, cmap="coolwarm", center=0, vmin=-0.5, vmax=0.5, ax=ax)
     ax.set_title("Correlation Difference (Stress - Normal)")
     fig.tight_layout()
     fig.savefig(os.path.join(FIGURES_DIR, "corr_diff_heatmap.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved: {os.path.join(FIGURES_DIR, 'corr_diff_heatmap.png')}")
-    
-    # Clustering stability
-    r_normal = slice_returns(returns, normal_window)
-    r_stress = slice_returns(returns, stress_window)
-    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(r_normal.corr().values)
-    _ = KMeans(n_clusters=4, random_state=0, n_init=10).fit_predict(r_stress.corr().values)
 
-    print("Regime analysis complete. Outputs and figures saved.")
-
-if __name__ == "__main__":
-    main()
+    print("Analysis complete.")
 
 def load_regime_outputs():
+    
     """
     Load precomputed regime outputs for main.py metrics
     Returns:
@@ -203,28 +217,36 @@ def load_regime_outputs():
         corr_stress : pd.DataFrame
         vol_normal  : pd.Series
         vol_stress  : pd.Series
-        cluster_labels : pd.Series
+        cluster_labels : pd.Series (Dummy/Fallback if not saved)
     """
+    # Hardcoded path matching the script's output
     OUTPUTS_DIR = "results/outputs"
 
-    # Correlations
-    corr_normal = pd.read_csv(f"{OUTPUTS_DIR}/corr_normal.csv", index_col=0)
-    corr_stress  = pd.read_csv(f"{OUTPUTS_DIR}/corr_stress.csv", index_col=0)
+    # 1. Load Correlations
+    corr_normal = pd.read_csv(os.path.join(OUTPUTS_DIR, "corr_normal.csv"), index_col=0)
+    corr_stress = pd.read_csv(os.path.join(OUTPUTS_DIR, "corr_stress.csv"), index_col=0)
 
-    # Volatility
-    vol_normal = pd.read_csv(f"{OUTPUTS_DIR}/vol_normal.csv", index_col=0)
+    # 2. Load Volatility (Handle Series loading)
+    # squeeze=True is deprecated in newer pandas, using squeeze("columns") or fallback
+    vol_normal = pd.read_csv(os.path.join(OUTPUTS_DIR, "vol_normal.csv"), index_col=0)
     if vol_normal.shape[1] == 1:
         vol_normal = vol_normal.iloc[:, 0]
 
-    vol_stress = pd.read_csv(f"{OUTPUTS_DIR}/vol_stress.csv", index_col=0)
+    vol_stress = pd.read_csv(os.path.join(OUTPUTS_DIR, "vol_stress.csv"), index_col=0)
     if vol_stress.shape[1] == 1:
         vol_stress = vol_stress.iloc[:, 0]
 
-    # Cluster labels fallback
-    cluster_labels_path = f"{OUTPUTS_DIR}/cluster_labels.csv"
+    # 3. Cluster labels (Legacy fallback to prevent errors)
+    # The current regime script does not save cluster labels to CSV, so we return a dummy.
+    # This prevents main.py from crashing during unpacking.
+    cluster_labels_path = os.path.join(OUTPUTS_DIR, "cluster_labels.csv")
     if os.path.exists(cluster_labels_path):
-        cluster_labels = pd.read_csv(cluster_labels_path, index_col=0, squeeze=True)
+        cluster_labels = pd.read_csv(cluster_labels_path, index_col=0).iloc[:, 0]
     else:
-        cluster_labels = pd.Series([0, 1, 2, 3], index=[0,1,2,3])
+        # Return an empty dummy series
+        cluster_labels = pd.Series(dtype=float)
 
     return corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels
+
+if __name__ == "__main__":
+    main()
