@@ -5,40 +5,46 @@ Main script providing a summary of key metrics and results
 import os
 import pandas as pd
 import numpy as np
-from sklearn.metrics import classification_report
 
-
-from src.regime_analysis import load_regime_outputs   
-from src.clustering import load_clustering_outputs    
+from src.regime_analysis import load_regime_outputs
+from src.clustering import load_clustering_outputs
 from src.supervised_regime_prediction import run_supervised_regime_prediction
 
 OUTPUT_DIR = "results/outputs"
 DATA_DIR = "results/data"
 CORR_PATH = os.path.join(OUTPUT_DIR, "rolling_corr_90d.csv")
 REGIMES_PATH = os.path.join(OUTPUT_DIR, "detected_regimes.csv")
-RETURNS_PATH = os.path.join(DATA_DIR, "returns.csv") 
-#Helper functions
+RETURNS_PATH = os.path.join(DATA_DIR, "returns.csv")
+
+
+# Helper functions
 def compute_overall_market_corr(corr_matrix):
-    if corr_matrix.empty: return 0.0
+    if corr_matrix.empty:
+        return 0.0
     mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
     return corr_matrix.where(mask).stack().mean()
 
+
 def compute_cluster_summary(cluster_series):
-    if cluster_series.empty: return {}
+    if cluster_series.empty:
+        return {}
     return cluster_series.value_counts().to_dict()
+
 
 def main():
     print(" ")
-    print("="*60)
+    print("=" * 60)
     print("Crypto Market Correlation Analysis")
-    print("="*60)
+    print("=" * 60)
 
     # 1. btc analysis
     coin_names = []
     if os.path.exists(CORR_PATH):
         df = pd.read_csv(CORR_PATH, index_col=[0, 1])
         corr = df.groupby(level=1).mean()
+        # Ensure symmetric and consistent ordering
         corr = (corr + corr.T) / 2
+        corr = corr.sort_index().sort_index(axis=1)
         coin_names = corr.columns.tolist()
 
         btc_name = ["bitcoin", "BTC", "btc"]
@@ -53,22 +59,25 @@ def main():
         else:
             print(f"   [Warning] Could not find Bitcoin in columns.")
 
-        # 2. Overall market analysis
+        # 2.Overall market analysis
         corr_offdiag = corr.where(~np.eye(corr.shape[0], dtype=bool))
-        stacked = corr_offdiag.stack()  
+        stacked = corr_offdiag.stack()
 
         if not stacked.empty:
             overall_avg_corr = stacked.mean()
             print("\n2. Overall Crypto-Market Correlation Summary")
             print(f"   • Average correlation across all coin-pairs: {overall_avg_corr:.2f}")
-            if overall_avg_corr > 0.70: level = "highly correlated"
-            elif overall_avg_corr > 0.50: level = "moderately correlated, therefore diversification opportunities exist but are limited."
-            else: level = "weakly correlated"
-            print(f"Interpretation: The major 10-coin crypto market is {level}.")
+            if overall_avg_corr > 0.70:
+                level = " very highly correlated"
+            elif overall_avg_corr > 0.50:
+                level = "highly correlated, therefore diversification opportunities are limited."
+            else:
+                level = "weakly correlated"
+            print(f"Interpretation: The crypto market is {level}.")
     else:
         print(f"\n[Warning] {CORR_PATH} not found. Skipping sections 1 & 2.")
 
-    # 3. Market Regimes 
+    #3.Market Regimes
     try:
         corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels = load_regime_outputs()
 
@@ -96,21 +105,25 @@ def main():
         print("Interpretation : Correlation rises sharply during market distress.")
     except Exception as e:
         print(f"\n[Error] Could not load regime outputs: {e}")
-    
+
     # 4. Clustering
     try:
         pca_var, sil_score, kmeans_labels = load_clustering_outputs()
-        
-        if isinstance(kmeans_labels.index, pd.RangeIndex) or isinstance(kmeans_labels.index, pd.Index):
-             if len(kmeans_labels) == len(coin_names):
-                 kmeans_labels.index = coin_names
-        
+
+        # If we have a rolling-corr coin order, align the labels to it.
+        if coin_names and not kmeans_labels.empty:
+            # Safe reindex: matches by coin name; leaves NaN where missing
+            kmeans_labels = kmeans_labels.reindex(coin_names)
+        # Now kmeans_labels.index matches coin_names order (if available)
+
         print("\n4. Machine Learning Analysis (K-Means Clustering)")
-        unique_clusters = sorted(kmeans_labels.unique())
-        print(f"   • Number of clusters detected: {len(unique_clusters)}")
-        
+        # Remove NaNs when counting/printing cluster members
+        valid_labels = kmeans_labels.dropna()
+        unique_clusters = sorted(valid_labels.unique())
+        print(f"   • Number of clusters: {len(unique_clusters)}")
+
         for cluster_id in unique_clusters:
-            coins_in_cluster = kmeans_labels[kmeans_labels == cluster_id].index.tolist()
+            coins_in_cluster = valid_labels[valid_labels == cluster_id].index.tolist()
             coin_str = ", ".join([c.capitalize() for c in coins_in_cluster])
             print(f"     – Cluster {cluster_id} ({len(coins_in_cluster)} coins): {coin_str}")
 
@@ -120,24 +133,25 @@ def main():
             print("\n   PCA explained variance (first 2 PCs):")
             print(f"   • PC1: {pca_var[0]:.2%}, PC2: {pca_var[1]:.2%}, cumulative: {sum(pca_var[:2]):.2%}")
         print(f"   Silhouette score: {sil_score:.3f}")
+        print("Interpretation: The low silhouette score indicates that clusters are not well-separated.")
     except Exception as e:
         print(f"\n[Error] Could not load clustering outputs: {e}")
 
-    # 5. Regime Prediction 
+    # 5. Regime Prediction
     print("\n5. Supervised Regime Prediction (Random Forest)")
-    print("   Can we predict stress regimes using only correlation?")
+    print("Hypothesis: Can we predict stress regimes using correlation as a predictive metric?")
     print("-" * 60)
     try:
         run_supervised_regime_prediction()
     except Exception as e:
         print(f"   [Error] Supervised script failed: {e}")
-    
+
     print("-" * 60)
     print("Interpretation: Correlation is not a reliable indicator to predict future crashes.")
     print("While correlation rises significantly during stress, it is mainly a consequence of the crash itself.")
     print("Therefore, using it as a measure to predict crashes has very little effectiveness.")
     print(" ")
-   
+
 
 if __name__ == "__main__":
     main()

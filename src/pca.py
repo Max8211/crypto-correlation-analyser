@@ -13,10 +13,10 @@ from sklearn.decomposition import PCA
 DATA_FILE = "results/data/returns.csv"
 OUTPUTS_FOLDER = "results/outputs"
 FIGURES_FOLDER = "results/figures"
-N_COMPONENTS = 5  # keep 5 components
+N_COMPONENTS = 5  #keep 5 components
 
 def load_returns(file_path: str) -> pd.DataFrame:
-    """Load daily returns CSV as a pandas DataFrame."""
+    """Load daily returns CSV as a pandas DataFrame"""
     return pd.read_csv(file_path, index_col=0, parse_dates=True)
 
 def compute_pca(df: pd.DataFrame, n_components: int = N_COMPONENTS) -> PCA:

@@ -1,7 +1,6 @@
 """
 Detect stress windows using Downside Volatility.
-Threshold: Top 20% (0.80).
-Visualization: Standard Heatmaps (Clean, no numbers, no dendrograms).
+Threshold: Top 15% days
 """
 
 import os
@@ -13,14 +12,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 
-# --- CONFIGURATION ---
 RETURNS_PATH = "results/data/returns.csv"
 OUTPUTS_DIR = "results/outputs"
 FIGURES_DIR = "results/figures"
 
-# CRYPTO SETTINGS
+# volatility parameters
 VOL_WINDOW = 14  
-# Top 20% of downside volatility days = Stress
+# Top 15% of downside volatility days 
 VOL_PERCENTILE = 0.85 
 
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
@@ -114,7 +112,7 @@ def main():
     market_idx = build_market_index(returns)
     market_idx.to_csv(os.path.join(OUTPUTS_DIR, "market_index.csv"))
     
-    # 1. Compute DOWNSIDE Volatility
+    # 1.Compute downside vol
     rolling_downside = compute_downside_volatility(returns, window=VOL_WINDOW)
     rolling_downside.to_csv(os.path.join(OUTPUTS_DIR, "market_downside_vol.csv"))
 
@@ -219,7 +217,7 @@ def load_regime_outputs():
         vol_stress  : pd.Series
         cluster_labels : pd.Series (Dummy/Fallback if not saved)
     """
-    # Hardcoded path matching the script's output
+    # Hardcoded path matching the script's output.
     OUTPUTS_DIR = "results/outputs"
 
     # 1. Load Correlations
@@ -227,7 +225,7 @@ def load_regime_outputs():
     corr_stress = pd.read_csv(os.path.join(OUTPUTS_DIR, "corr_stress.csv"), index_col=0)
 
     # 2. Load Volatility (Handle Series loading)
-    # squeeze=True is deprecated in newer pandas, using squeeze("columns") or fallback
+
     vol_normal = pd.read_csv(os.path.join(OUTPUTS_DIR, "vol_normal.csv"), index_col=0)
     if vol_normal.shape[1] == 1:
         vol_normal = vol_normal.iloc[:, 0]
@@ -236,14 +234,12 @@ def load_regime_outputs():
     if vol_stress.shape[1] == 1:
         vol_stress = vol_stress.iloc[:, 0]
 
-    # 3. Cluster labels (Legacy fallback to prevent errors)
-    # The current regime script does not save cluster labels to CSV, so we return a dummy.
-    # This prevents main.py from crashing during unpacking.
+    # 3. Cluster labels 
+    
     cluster_labels_path = os.path.join(OUTPUTS_DIR, "cluster_labels.csv")
     if os.path.exists(cluster_labels_path):
         cluster_labels = pd.read_csv(cluster_labels_path, index_col=0).iloc[:, 0]
     else:
-        # Return an empty dummy series
         cluster_labels = pd.Series(dtype=float)
 
     return corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels

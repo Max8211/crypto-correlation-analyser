@@ -2,8 +2,7 @@
 Analyse returns by computing
 summary statistics, visualizing distributions, correlations, and rolling
 volatility. 
-
-Extreme outliers are clipped for visualization to make comparisons readable.
+Extreme outliers are clipped for visualization
 """
 
 import os
@@ -35,7 +34,7 @@ def summary_statistics(df: pd.DataFrame, output_path: str) -> None:
 
 
 def correlation_heatmap(df: pd.DataFrame, figures_folder: str, output_path: str) -> None:
-    """Compute correlation matrix and plot heatmap."""
+    """Compute correlation matrix and plot heatmap"""
     corr = df.corr()
     corr.to_csv(output_path)
     plt.figure(figsize=(10, 8))

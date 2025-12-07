@@ -1,13 +1,6 @@
 """
-Base Supervised Prediction Script.
-Uses fundamental correlation metrics to predict market stress.
-
-Features:
-1. Mean Correlation (Rolling & EWMA)
-2. Correlation Momentum (Rolling - EWMA)
-3. Correlation Dispersion (Standard Deviation across pairs)
-4. Velocity (Day-to-day change in correlation)
-5. Lags (1-3 days history)
+Supervised Prediction Script.
+Use fundamental correlation metrics to try predicting market stress
 """
 
 import os
@@ -35,7 +28,7 @@ REGIMES_FILE = os.path.join(OUTPUTS_DIR, "detected_regimes.csv")
 def load_corr(file_path: str) -> pd.DataFrame:
     """Load correlation CSV and handle MultiIndex/Flat formats."""
     try:
-        # Try loading as MultiIndex first (Date, Ticker) -> Collapse to daily mean
+        # Try loading as MultiIndex
         df = pd.read_csv(file_path, index_col=[0, 1], parse_dates=True)
         df = df.groupby(level=0).mean()
     except ValueError:
@@ -49,34 +42,32 @@ def load_corr(file_path: str) -> pd.DataFrame:
 
 def build_features(rolling: pd.DataFrame, ewma: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute logical features from correlation data.
+    Compute logical features from correlation data
     """
-    # Align indices
+    #Align indices
     common_idx = rolling.index.intersection(ewma.index)
     rolling = rolling.loc[common_idx]
     ewma = ewma.loc[common_idx]
 
     df = pd.DataFrame(index=common_idx)
     
-    # 1. Market Unity (Mean Correlation)
+    # Market Unity (Mean Correlation)
     df['rolling_mean'] = rolling.mean(axis=1)
     df['ewma_mean'] = ewma.mean(axis=1)
     
-    # 2. Momentum (Is correlation rising fast?)
+    # Momentum (Is correlation rising fast?)
     # If Rolling > EWMA, recent correlation is higher than the trend
     df['mean_diff'] = df['rolling_mean'] - df['ewma_mean']
     
-    # 3. Market Dispersion (Standard Deviation across coin pairs)
-    # Low std = All coins moving in perfect lockstep (Panic behavior)
-    # High std = Some coins decoupling (Normal behavior)
+    # Market Dispersion (Standard Deviation across coin pairs)
     df['corr_dispersion'] = rolling.std(axis=1)
     
-    # 4. Lags (Memory)
+    # Lags (Memory)
     # Give the model context of the last 3 days
     for lag in [1, 2, 3]:
         df[f'rolling_mean_lag{lag}'] = df['rolling_mean'].shift(lag)
 
-    # 5. Velocity (1-Day Change)
+    # velocity (1-Day Change)
     # Did correlation spike yesterday?
     df['corr_velocity'] = df['rolling_mean'] - df['rolling_mean_lag1']
 
