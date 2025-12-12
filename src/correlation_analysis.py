@@ -95,7 +95,6 @@ def main():
     ewma_pairs = extract_pairwise_data(ewma_corr, KEY_PAIRS)
     plot_selected_pairs(ewma_pairs, FIGURES_FOLDER, f"EWMA {EWMA_SPAN}-Day")
     
-    # NOTE: "Mean" and "Regime Shaded" plots have been removed as requested.
     
     print("Correlation analysis complete.")
 
