@@ -95,10 +95,19 @@ def build_labels(features: pd.DataFrame) -> pd.Series:
 
 def plot_feature_importance(clf: RandomForestClassifier, features: pd.DataFrame):
     if hasattr(clf, 'feature_importances_'):
+        # Create the series
         imp = pd.Series(clf.feature_importances_, index=features.columns).sort_values(ascending=True)
+        
         plt.figure(figsize=(10, 6))
+        
+        # Plot
         sns.barplot(x=imp.values, y=imp.index, hue=imp.index, palette="viridis", legend=False)
-        plt.title("Feature Importances")
+        
+        plt.title("Feature Importance")
+        
+        plt.xlabel("Relative Importance") 
+        plt.ylabel("Features")                 
+
         plt.tight_layout()
         plt.savefig(os.path.join(FIGURES_DIR, "feature_importance.png"))
         plt.close()
