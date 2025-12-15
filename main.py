@@ -8,7 +8,7 @@ import numpy as np
 
 from src.regime_analysis import load_regime_outputs
 from src.clustering import load_clustering_outputs
-from src.supervised_regime_prediction import run_supervised_regime_prediction
+from src.supervised_regime_classification import run_supervised_regime_classification
 
 OUTPUT_DIR = "results/outputs"
 DATA_DIR = "results/data"
@@ -137,19 +137,19 @@ def main():
     except Exception as e:
         print(f"\n[Error] Could not load clustering outputs: {e}")
 
-    # 5. Regime Prediction
-    print("\n5. Supervised Regime Prediction (Random Forest)")
-    print("Hypothesis: Can we predict stress regimes using correlation as a predictive metric?")
+    # 5. Regime Classification
+    print("\n5. Supervised Regime Classification (Random Forest)")
+    print("Can we classify the current market state using correlation metrics?")
     print("-" * 60)
     try:
-        run_supervised_regime_prediction()
+        run_supervised_regime_classification()
     except Exception as e:
         print(f"   [Error] Supervised script failed: {e}")
 
     print("-" * 60)
-    print("Interpretation: Correlation is not a reliable indicator to predict future crashes.")
-    print("While correlation rises significantly during stress, it is mainly a consequence of the crash itself.")
-    print("Therefore, using it as a measure to predict crashes has very little effectiveness.")
+    print("Interpretation: Correlation serves as a reliable coincident indicator.")
+    print("The model shows high precision but is conservative (low recall) so it misses a great portion of stress periods.")
+    print("This implies that high correlation is a sufficient metric for stress, however not a necessary one.")
     print(" ")
 
 
