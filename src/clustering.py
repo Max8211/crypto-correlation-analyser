@@ -121,15 +121,6 @@ def plot_silhouette(feature_df: pd.DataFrame, max_k: int = 6):
     save_plot(fig, "silhouette_score.png")
 
 
-def plot_clustered_corr(corr: pd.DataFrame, labels: pd.Series):
-    ordered_idx = labels.sort_values().index
-    df = corr.loc[ordered_idx, ordered_idx]
-    fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(df, annot=True, fmt=".2f", cmap="coolwarm", cbar=True, ax=ax)
-    ax.set_title("Correlation Heatmap (Ordered by Cluster)")
-    fig.tight_layout()
-    save_plot(fig, "clustered_correlation_heatmap.png")
-
 
 def main():
     print("Loading Data...")
@@ -168,7 +159,7 @@ def main():
 
     plot_mds_scatter(static_corr, kmeans_labels, pca_stats.explained_variance_ratio_)
     plot_silhouette(static_corr)
-    plot_clustered_corr(static_corr, kmeans_labels)
+
 
     print("Clustering analysis complete.")
 
