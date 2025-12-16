@@ -10,7 +10,6 @@ import warnings
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from imblearn.over_sampling import SMOTE
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -115,57 +114,47 @@ def plot_feature_importance(clf: RandomForestClassifier, features: pd.DataFrame)
 
 
 def main():
-   # Quiet loading 
-   rolling = load_corr(ROLLING_FILE)
-   ewma = load_corr(EWMA_FILE)
+    # Quiet loading
+    rolling = load_corr(ROLLING_FILE)
+    ewma = load_corr(EWMA_FILE)
 
-   features = build_features(rolling, ewma)
-   labels = build_labels(features)
+    features = build_features(rolling, ewma)
+    labels = build_labels(features)
 
+    # Split train/test (Time Series Split)
+    # shuffle=False prevents data leakage (Train on Past, Test on Future)
+    X_train, X_test, y_train, y_test = train_test_split(
+        features, labels, test_size=0.2, shuffle=False
+    )
 
-   # Split train/test (Time Series Split)
-   # shuffle=False prevents data leakage (Train on Past, Test on Future)
-   X_train, X_test, y_train, y_test = train_test_split(
-       features, labels, test_size=0.2, shuffle=False
-   )
+    # --- Class Weight Implementation ---
+    # We use class_weight='balanced' to penalize the model for missing stress periods.
+    
+    clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+    clf.fit(X_train, y_train)
 
-   # --- SMOTE Implementation (Fixing Class Imbalance) ---
-   #print(f"Original Training Stress Count: {sum(y_train == 'stress')}")
-   
-   #Initialize SMOTE
-   smote = SMOTE(random_state=42)
-   
-   # Resample ONLY the training data
-   X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-   
-   #print(f"Balanced Training Stress Count: {sum(y_train_balanced == 'stress')}")
-   #these prints are for report purposes and have been commented out
+    
+    # set threshold to 0.40 to filter out weak signals/noise. ensures higher precision for "stress" class
 
-   # training (Standard Random Forest on Balanced Data)
-   clf = RandomForestClassifier(n_estimators=100, random_state=42)
-   clf.fit(X_train_balanced, y_train_balanced)
+    custom_threshold = 0.35
 
-   # --- THRESHOLD  ---
-   # set threshold to 0.40 to filter out weak signals/noise.
-   # This ensures that when the model flags 'Stress', it is highly likely to be real.
-   custom_threshold = 0.40 
-   
-   # Get probability of "stress" class
-   stress_col_index = list(clf.classes_).index("stress")
-   y_probs = clf.predict_proba(X_test)[:, stress_col_index]
-   
-   # Apply custom threshold
-   y_class_adjusted = np.where(y_probs >= custom_threshold, "stress", "normal")
-   
-   print(f"\nClassification Report")
-   print(classification_report(y_test, y_class_adjusted))
-   # -------------------------------------------------
+    # Get probability of "stress" class
+    stress_col_index = list(clf.classes_).index("stress")
+    y_probs = clf.predict_proba(X_test)[:, stress_col_index]
 
-   plot_feature_importance(clf, features)
+    # Apply custom threshold
+    y_class_adjusted = np.where(y_probs >= custom_threshold, "stress", "normal")
+
+    print(f"\nClassification Report")
+    print(classification_report(y_test, y_class_adjusted))
+
+    plot_feature_importance(clf, features)
+
 
 def run_supervised_regime_classification():
     """Wrapper so main.py can call this script."""
     main()
+
 
 if __name__ == "__main__":
     main()
