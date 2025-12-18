@@ -34,51 +34,27 @@ def summary_statistics(df: pd.DataFrame, output_path: str) -> None:
 
 
 def correlation_heatmap(df: pd.DataFrame, figures_folder: str, output_path: str) -> None:
-    """Compute correlation matrix and plot heatmap"""
+    """Compute correlation matrix"""
     corr = df.corr()
     corr.to_csv(output_path)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", cbar=True)
-    plt.title("Correlation Heatmap of Returns")
-    plt.tight_layout()
-    plt.savefig(os.path.join(figures_folder, "correlation_heatmap.png"))
-    plt.close()
 
 
 def plot_rolling_volatility(df: pd.DataFrame, figures_folder: str, window: int = 30) -> None:
     """Plot rolling volatility with clipping and log scale for readability."""
     rolling_vol = df.rolling(window=window).std()
-    # Clip extremes for visualization
-    lower, upper = rolling_vol.quantile(0.01).min(), rolling_vol.quantile(0.99).max()
-    rolling_vol_clip = rolling_vol.clip(lower, upper, axis=1)
-
-    plt.figure(figsize=(12, 6))
-    for coin in df.columns:
-        plt.plot(rolling_vol_clip.index, rolling_vol_clip[coin], label=coin)
-
-    plt.title(f"{window}-Day Rolling Volatility (Clipped 1-99%, Log Scale)")
-    plt.ylabel("Volatility")
-    plt.xlabel("Date")
-    plt.yscale("log")  # log scale
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(figures_folder, f"rolling_volatility_{window}d_log.png"))
-    plt.close()
+    
 
 
 def main():
     df = load_returns(DATA_FILE)
 
-    # Save 
+    # Compute and save descriptive statistics (mean, skew, kurtosis, etc.)
     summary_statistics(df, os.path.join(OUTPUTS_FOLDER, "summary_statistics.csv"))
 
-    # Compute and plot correlation heatmap
+    # Compute and save the correlation matrix CSV
     correlation_heatmap(
         df, FIGURES_FOLDER, os.path.join(OUTPUTS_FOLDER, "correlation_matrix.csv")
     )
-
-    # Plot rolling volatility
-    plot_rolling_volatility(df, FIGURES_FOLDER, window=30)
 
 if __name__ == "__main__":
     main()

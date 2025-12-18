@@ -4,6 +4,7 @@ Compute daily returns for each coin and save as returns.csv
 import pandas as pd
 import os
 
+# paths 
 data_folder = "results/data"
 merged_file = os.path.join(data_folder, "clean_prices.csv")
 returns_file = os.path.join(data_folder, "returns.csv")
@@ -17,4 +18,5 @@ returns = df.pct_change().dropna()
 # save
 returns.to_csv(returns_file)
 
+# print confirmation
 print("Daily returns saved to returns.csv")

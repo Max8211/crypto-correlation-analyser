@@ -37,7 +37,7 @@ def save_plot(fig, filename: str):
     print(f"Saved figure: {path}")
 
 
-def run_kmeans(feature_df: pd.DataFrame, k: int = 3) -> pd.Series:
+def run_kmeans(feature_df: pd.DataFrame, k: int = 2) -> pd.Series:
     """
     Run KMeans on the feature matrix (rows=coins, columns=features)
     """
@@ -146,7 +146,7 @@ def main():
     print(f"Saved PCA Variance to {pca_var_path}")
 
     print("Running KMeans...")
-    kmeans_labels = run_kmeans(static_corr, k=3)
+    kmeans_labels = run_kmeans(static_corr, k=2)
     kmeans_path = os.path.join(OUTPUTS_DIR, "kmeans_clusters.csv")
     kmeans_labels.to_csv(kmeans_path, header=True)
     print(f"Saved KMeans clusters to {kmeans_path}")

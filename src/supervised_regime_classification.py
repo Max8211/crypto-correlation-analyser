@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 import seaborn as sns
 import matplotlib.pyplot as plt
+import correlation_analysis as correlation_script
 
 warnings.filterwarnings("ignore", message="Could not infer format")
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
@@ -112,9 +113,20 @@ def plot_feature_importance(clf: RandomForestClassifier, features: pd.DataFrame)
         plt.savefig(os.path.join(FIGURES_DIR, "feature_importance.png"))
         plt.close()
 
+def load_supervised_outputs():
+    """
+    Check if required correlation files exist. If not, run correlation_analysis.py.
+    """
+    if not (os.path.exists(ROLLING_FILE) and os.path.exists(EWMA_FILE)):
+        print("\n[System] Correlation files missing. Running src/correlation_analysis.py now...")
+        correlation_script.main()
+        print("[System] Correlation analysis complete. Resuming classification...\n")
 
 def main():
-    # Quiet loading
+    # Ensure dependency files are generated first
+    load_supervised_outputs()
+
+    # Continue with loading
     rolling = load_corr(ROLLING_FILE)
     ewma = load_corr(EWMA_FILE)
 
@@ -127,15 +139,11 @@ def main():
         features, labels, test_size=0.2, shuffle=False
     )
 
-    # --- Class Weight Implementation ---
-    # We use class_weight='balanced' to penalize the model for missing stress periods.
-    
+    # Class Weight Implementation
     clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
     clf.fit(X_train, y_train)
 
-    
-    # set threshold to 0.40 to filter out weak signals/noise. ensures higher precision for "stress" class
-
+    # set threshold 
     custom_threshold = 0.35
 
     # Get probability of "stress" class
