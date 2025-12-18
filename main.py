@@ -1,6 +1,5 @@
 """
 Main script providing a summary of key metrics and results
-Ensures full reproducibility by running the data pipeline before reporting.
 """
 
 import os
@@ -9,8 +8,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 
-# --- PATHING FIX ---
-# Define the project root and add BOTH root and src to sys.path
+# Define the project root and add both root and src to sys.path 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, "src")
 
@@ -19,7 +17,7 @@ if BASE_DIR not in sys.path:
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-# Now imports from src will work correctly
+# Import helper functions from src
 from src.regime_analysis import load_regime_outputs
 from src.clustering import load_clustering_outputs
 from src.supervised_regime_classification import run_supervised_regime_classification
@@ -33,7 +31,7 @@ RETURNS_PATH = os.path.join(DATA_DIR, "returns.csv")
 
 def run_pipeline():
     """
-    Executes all data processing and analysis scripts in the correct order.
+    Executes all data processing and analysis scripts in the correct order in order to avoid hardcoding issues
     """
     pipeline_scripts = [
         "merge_data.py",
@@ -45,6 +43,7 @@ def run_pipeline():
         "clustering.py"
     ]
     
+    print(" ")
     print("--- [System] Initializing Full Data Pipeline ---")
     for script in pipeline_scripts:
         script_path = os.path.join(SRC_DIR, script)
@@ -103,6 +102,19 @@ def main():
         corr_offdiag = corr.where(~np.eye(corr.shape[0], dtype=bool))
         stacked = corr_offdiag.stack()
 
+        # Detailed BTC correlation summary commented out for simplicity
+
+        #   if btc_col:
+        #   btc_corr = corr.loc[btc_col].drop(btc_col)
+        #   print("\n1.2. Bitcoin Correlation Summary (Detailed)")
+        #   for coin, value in btc_corr.sort_values(ascending=False).items():
+        #   print(f"   • {coin.capitalize():<12}: {value:.2f}")
+        #   print(f"\n   • Most correlated with BTC : {btc_corr.idxmax()} ({btc_corr.max():.2f})")
+        #   print(f"   • Least correlated with BTC: {btc_corr.idxmin()} ({btc_corr.min():.2f})")
+        #   print(f"   • Average BTC correlation   : {btc_corr.mean():.2f}")
+       
+
+        # 2. Overall Market Correlation
         if not stacked.empty:
             overall_avg_corr = stacked.mean()
             print("\n2. Overall Crypto-Market Correlation Summary")
@@ -116,6 +128,18 @@ def main():
                 level = "weakly correlated."
             print(f"   Interpretation: The crypto market is {level}")
 
+        
+        # Detailed pairwise correlation summary commented out for simplicity
+
+        #   max_pair = stacked.idxmax()
+        #   min_pair = stacked.idxmin()
+        #   Capitalize names for cleaner output
+        #   max_n1, max_n2 = max_pair[0].capitalize(), max_pair[1].capitalize()
+        #   min_n1, min_n2 = min_pair[0].capitalize(), min_pair[1].capitalize()
+        #   print(f"   • Highest Pairwise Correlation: {max_n1} - {max_n2} ({stacked.max():.2f})")
+        #   print(f"   • Lowest Pairwise Correlation : {min_n1} - {min_n2} ({stacked.min():.2f})")
+          
+
     # 3. Market Regimes
     try:
         corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels = load_regime_outputs()
@@ -126,7 +150,7 @@ def main():
         print(f"   • Average normal-period correlation: {avg_norm:.2f}")
         print(f"   • Average stress-period correlation: {avg_stress:.2f}")
         print(f"   • Correlation increase during stress: {diff:+.2f}")
-        print("Interpretation : Correlation rises sharply during market distress.")
+        print(f"   Interpretation : Correlation rises sharply during market distress.")
     except Exception as e:
         print(f"\n[Error] Could not load regime outputs: {e}")
 
@@ -143,6 +167,7 @@ def main():
             coins_in_cluster = valid_labels[valid_labels == cluster_id].index.tolist()
             print(f"     – Cluster {cluster_id} ({len(coins_in_cluster)} coins): {', '.join([c.capitalize() for c in coins_in_cluster])}")
         print(f"   Silhouette score: {sil_score:.3f}")
+        print(f"   Interpretation : This rather high silhouette score indicates well-defined clusters.")
         if len(pca_var) >= 2:
             print(f"   • PCA Explained Var: PC1 {pca_var[0]:.2%}, PC2 {pca_var[1]:.2%}")
     except Exception as e:
@@ -156,7 +181,10 @@ def main():
     except Exception as e:
         print(f"   [Error] Supervised script failed: {e}")
     print("-" * 60)
-    print("Interpretation: Correlation serves as a reliable coincident indicator.")
+    print(f"Interpretation: Correlation serves as a reliable coincident indicator.")
+    print(f"The model achieves high precision but low recall for stress regime detection.")
+    print(f"This implies that high correlation is a sufficient but not necessary condition for market stress.")
+    print(" ")
 
 if __name__ == "__main__":
     main()

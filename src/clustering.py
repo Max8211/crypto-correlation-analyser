@@ -125,18 +125,20 @@ def plot_silhouette(feature_df: pd.DataFrame, max_k: int = 6):
 def main():
     print("Loading Data...")
     try:
+        #Load data and calculate the static correlation matrix
         returns = load_returns(RETURNS_PATH)
     except FileNotFoundError as e:
         print(f"[Error] {e}")
         return
-
+    # Sort indices to ensure consistent coin mapping across all scripts
     static_corr = returns.corr()
     static_corr = static_corr.sort_index().sort_index(axis=1)
 
     order_path = os.path.join(OUTPUTS_DIR, "clustering_coin_order.csv")
     pd.Series(static_corr.columns).to_csv(order_path, index=False)
     print(f"Saved coin order to {order_path}")
-
+    
+    # PCA: Reduce dimensions to capture major variance components
     print("Computing PCA Stats...")
     n_comp = min(2, min(returns.shape))
     pca_stats = PCA(n_components=n_comp)
@@ -145,6 +147,7 @@ def main():
     np.savetxt(pca_var_path, pca_stats.explained_variance_ratio_, delimiter=",")
     print(f"Saved PCA Variance to {pca_var_path}")
 
+    # KMeans Clustering
     print("Running KMeans...")
     kmeans_labels = run_kmeans(static_corr, k=2)
     kmeans_path = os.path.join(OUTPUTS_DIR, "kmeans_clusters.csv")
@@ -170,12 +173,13 @@ def load_clustering_outputs():
     pca_path = os.path.join(OUTPUTS_DIR, "pca_explained_var.csv")
     sil_path = os.path.join(OUTPUTS_DIR, "silhouette_score.csv")
     kmeans_path = os.path.join(OUTPUTS_DIR, "kmeans_clusters.csv")
-
+    # Dependency check: Automatically run analysis if files are missing
     if not (os.path.exists(pca_path) and os.path.exists(sil_path) and os.path.exists(kmeans_path)):
         print("\n[System] Clustering output files missing. Running src/clustering.py now...")
         main()
         print("[System] Clustering complete. Resuming main script...\n")
 
+    # Load and format PCA explained variance
     if os.path.exists(pca_path):
         pca_explained_var = np.loadtxt(pca_path, delimiter=",")
         if pca_explained_var.ndim == 0:
@@ -183,6 +187,7 @@ def load_clustering_outputs():
     else:
         pca_explained_var = np.array([0.0, 0.0])
 
+    # Load and format Silhouette score
     if os.path.exists(sil_path):
         with open(sil_path, "r") as f:
             val = f.read().strip()
@@ -190,6 +195,7 @@ def load_clustering_outputs():
     else:
         silhouette_score_val = 0.0
 
+    # Load and format K-Means labels
     if os.path.exists(kmeans_path):
         kmeans_labels = pd.read_csv(kmeans_path, index_col=0).iloc[:, 0]
         kmeans_labels = pd.Series(kmeans_labels, name="cluster")
