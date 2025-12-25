@@ -159,7 +159,7 @@ def main():
         pca_var, sil_score, kmeans_labels = load_clustering_outputs()
         if coin_names and not kmeans_labels.empty:
             kmeans_labels = kmeans_labels.reindex(coin_names)
-        print("\n4. Machine Learning Analysis (K-Means Clustering)")
+        print("\n4. Machine Learning Analysis (K-Means Clustering & PCA)")
         valid_labels = kmeans_labels.dropna()
         unique_clusters = sorted(valid_labels.unique())
         print(f"   • Number of clusters: {len(unique_clusters)}")
