@@ -36,8 +36,8 @@ def load_corr(file_path: str) -> pd.DataFrame:
         # Fallback for flat format
         df = pd.read_csv(file_path, index_col=0, parse_dates=True)
 
-    df = df.apply(pd.to_numeric, errors='coerce')
-    df = df.ffill().bfill() 
+    df = df.apply(pd.to_numeric, errors="coerce")
+    df = df.ffill().bfill()
     return df
 
 
@@ -45,36 +45,36 @@ def build_features(rolling: pd.DataFrame, ewma: pd.DataFrame) -> pd.DataFrame:
     """
     Compute logical features from correlation data
     """
-    #Align indices
+    # Align indices
     common_idx = rolling.index.intersection(ewma.index)
     rolling = rolling.loc[common_idx]
     ewma = ewma.loc[common_idx]
 
     df = pd.DataFrame(index=common_idx)
-    
+
     # Market Unity (Mean Correlation)
-    df['rolling_mean'] = rolling.mean(axis=1)
-    df['ewma_mean'] = ewma.mean(axis=1)
-    
+    df["rolling_mean"] = rolling.mean(axis=1)
+    df["ewma_mean"] = ewma.mean(axis=1)
+
     # Momentum (Is correlation rising fast?)
     # If Rolling > EWMA, recent correlation is higher than the trend
-    df['mean_diff'] = df['rolling_mean'] - df['ewma_mean']
-    
+    df["mean_diff"] = df["rolling_mean"] - df["ewma_mean"]
+
     # Market Dispersion (Standard Deviation across coin pairs)
-    df['corr_dispersion'] = rolling.std(axis=1)
-    
+    df["corr_dispersion"] = rolling.std(axis=1)
+
     # Lags (Memory)
     # Give the model context of the last 3 days
     for lag in [1, 2, 3]:
-        df[f'rolling_mean_lag{lag}'] = df['rolling_mean'].shift(lag)
+        df[f"rolling_mean_lag{lag}"] = df["rolling_mean"].shift(lag)
 
     # velocity (1-Day Change) to determin if circulation is spiking
-    
-    df['corr_velocity'] = df['rolling_mean'] - df['rolling_mean_lag1']
+
+    df["corr_velocity"] = df["rolling_mean"] - df["rolling_mean_lag1"]
 
     # Drop NaNs created by shift
     df = df.dropna()
-    
+
     return df
 
 
@@ -83,44 +83,52 @@ def build_labels(features: pd.DataFrame) -> pd.Series:
     if not os.path.exists(REGIMES_FILE):
         raise FileNotFoundError(f"Regimes file not found at {REGIMES_FILE}")
 
-    regimes = pd.read_csv(REGIMES_FILE, parse_dates=['start', 'end'])
+    regimes = pd.read_csv(REGIMES_FILE, parse_dates=["start", "end"])
     labels = pd.Series(index=features.index, dtype="object")
     labels[:] = "normal"
 
     for _, row in regimes.iterrows():
-        mask = (features.index >= row['start']) & (features.index <= row['end'])
-        labels.loc[mask] = row['kind']
-        
+        mask = (features.index >= row["start"]) & (features.index <= row["end"])
+        labels.loc[mask] = row["kind"]
+
     return labels
 
 
 def plot_feature_importance(clf: RandomForestClassifier, features: pd.DataFrame):
-    if hasattr(clf, 'feature_importances_'):
+    if hasattr(clf, "feature_importances_"):
         # Create the series
-        imp = pd.Series(clf.feature_importances_, index=features.columns).sort_values(ascending=True)
-        
+        imp = pd.Series(clf.feature_importances_, index=features.columns).sort_values(
+            ascending=True
+        )
+
         plt.figure(figsize=(10, 6))
-        
+
         # Plot
-        sns.barplot(x=imp.values, y=imp.index, hue=imp.index, palette="viridis", legend=False)
-        
+        sns.barplot(
+            x=imp.values, y=imp.index, hue=imp.index, palette="viridis", legend=False
+        )
+
         plt.title("Feature Importance")
-        
-        plt.xlabel("Relative Importance") 
-        plt.ylabel("Features")                 
+
+        plt.xlabel("Relative Importance")
+        plt.ylabel("Features")
 
         plt.tight_layout()
         plt.savefig(os.path.join(FIGURES_DIR, "feature_importance.png"))
         plt.close()
+
 
 def load_supervised_outputs():
     """
     Check if required correlation files exist. If not, run correlation_analysis.py.
     """
     if not (os.path.exists(ROLLING_FILE) and os.path.exists(EWMA_FILE)):
-        print("\n[System] Correlation files missing. Running src/correlation_analysis.py now...")
+        print(
+            "\n[System] Correlation files missing. Running src/correlation_analysis.py now..."
+        )
         correlation_script.main()
         print("[System] Correlation analysis complete. Resuming classification...\n")
+
 
 def main():
     # Ensure dependency files are generated first
@@ -140,10 +148,12 @@ def main():
     )
 
     # Class Weight Implementation
-    clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+    clf = RandomForestClassifier(
+        n_estimators=100, random_state=42, class_weight="balanced"
+    )
     clf.fit(X_train, y_train)
 
-    # set threshold 
+    # set threshold
     custom_threshold = 0.35
 
     # Get probability of "stress" class

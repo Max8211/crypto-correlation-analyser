@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 
-# Define the project root and add both root and src to sys.path 
+# Define the project root and add both root and src to sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, "src")
 
@@ -29,6 +29,7 @@ CORR_PATH = os.path.join(OUTPUT_DIR, "rolling_corr_90d.csv")
 REGIMES_PATH = os.path.join(OUTPUT_DIR, "detected_regimes.csv")
 RETURNS_PATH = os.path.join(DATA_DIR, "returns.csv")
 
+
 def run_pipeline():
     """
     Executes all data processing and analysis scripts in the correct order in order to avoid hardcoding issues
@@ -40,31 +41,29 @@ def run_pipeline():
         "correlation_analysis.py",
         "regime_analysis.py",
         "pca.py",
-        "clustering.py"
+        "clustering.py",
     ]
-    
+
     print(" ")
     print("--- [System] Initializing Full Data Pipeline ---")
     for script in pipeline_scripts:
         script_path = os.path.join(SRC_DIR, script)
         print(f"Executing: {script}...")
-        
+
         # Pass the current sys.path to the sub-process
         env = os.environ.copy()
         env["PYTHONPATH"] = SRC_DIR + os.pathsep + env.get("PYTHONPATH", "")
-        
+
         result = subprocess.run(
-            [sys.executable, script_path], 
-            capture_output=True, 
-            text=True, 
-            env=env
+            [sys.executable, script_path], capture_output=True, text=True, env=env
         )
-        
+
         if result.returncode != 0:
             print(f"\n[CRITICAL ERROR] in {script}:")
             print(result.stderr)
             sys.exit(1)
     print("--- [System] Pipeline Complete. Generating Report Summary ---\n")
+
 
 # Helper functions
 def compute_overall_market_corr(corr_matrix):
@@ -72,6 +71,7 @@ def compute_overall_market_corr(corr_matrix):
         return 0.0
     mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
     return corr_matrix.where(mask).stack().mean()
+
 
 def main():
     run_pipeline()
@@ -95,10 +95,14 @@ def main():
         print("\n1. Bitcoin Correlation Summary")
         if btc_col:
             btc_corr = corr.loc[btc_col].drop(btc_col)
-            print(f"   • Most correlated with BTC : {btc_corr.idxmax()} ({btc_corr.max():.2f})")
-            print(f"   • Least correlated with BTC: {btc_corr.idxmin()} ({btc_corr.min():.2f})")
+            print(
+                f"   • Most correlated with BTC : {btc_corr.idxmax()} ({btc_corr.max():.2f})"
+            )
+            print(
+                f"   • Least correlated with BTC: {btc_corr.idxmin()} ({btc_corr.min():.2f})"
+            )
             print(f"   • Average BTC correlation with market: {btc_corr.mean():.2f}")
-        
+
         corr_offdiag = corr.where(~np.eye(corr.shape[0], dtype=bool))
         stacked = corr_offdiag.stack()
 
@@ -112,13 +116,14 @@ def main():
         #   print(f"\n   • Most correlated with BTC : {btc_corr.idxmax()} ({btc_corr.max():.2f})")
         #   print(f"   • Least correlated with BTC: {btc_corr.idxmin()} ({btc_corr.min():.2f})")
         #   print(f"   • Average BTC correlation   : {btc_corr.mean():.2f}")
-       
 
         # 2. Overall Market Correlation
         if not stacked.empty:
             overall_avg_corr = stacked.mean()
             print("\n2. Overall Crypto-Market Correlation Summary")
-            print(f"   • Average correlation across all coin-pairs: {overall_avg_corr:.2f}")
+            print(
+                f"   • Average correlation across all coin-pairs: {overall_avg_corr:.2f}"
+            )
 
             if overall_avg_corr > 0.70:
                 level = "very highly correlated."
@@ -128,7 +133,6 @@ def main():
                 level = "weakly correlated."
             print(f"   Interpretation: The crypto market is {level}")
 
-        
         # Detailed pairwise correlation summary commented out for simplicity
 
         #   max_pair = stacked.idxmax()
@@ -138,11 +142,12 @@ def main():
         #   min_n1, min_n2 = min_pair[0].capitalize(), min_pair[1].capitalize()
         #   print(f"   • Highest Pairwise Correlation: {max_n1} - {max_n2} ({stacked.max():.2f})")
         #   print(f"   • Lowest Pairwise Correlation : {min_n1} - {min_n2} ({stacked.min():.2f})")
-          
 
     # 3. Market Regimes
     try:
-        corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels = load_regime_outputs()
+        corr_normal, corr_stress, vol_normal, vol_stress, cluster_labels = (
+            load_regime_outputs()
+        )
         avg_norm = compute_overall_market_corr(corr_normal)
         avg_stress = compute_overall_market_corr(corr_stress)
         diff = avg_stress - avg_norm
@@ -165,9 +170,13 @@ def main():
         print(f"   • Number of clusters: {len(unique_clusters)}")
         for cluster_id in unique_clusters:
             coins_in_cluster = valid_labels[valid_labels == cluster_id].index.tolist()
-            print(f"     – Cluster {cluster_id} ({len(coins_in_cluster)} coins): {', '.join([c.capitalize() for c in coins_in_cluster])}")
+            print(
+                f"     – Cluster {cluster_id} ({len(coins_in_cluster)} coins): {', '.join([c.capitalize() for c in coins_in_cluster])}"
+            )
         print(f"   Silhouette score: {sil_score:.3f}")
-        print(f"   Interpretation : This rather high silhouette score indicates well-defined clusters.")
+        print(
+            f"   Interpretation : This rather high silhouette score indicates well-defined clusters."
+        )
         if len(pca_var) >= 2:
             print(f"   • PCA Explained Var: PC1 {pca_var[0]:.2%}, PC2 {pca_var[1]:.2%}")
     except Exception as e:
@@ -182,9 +191,14 @@ def main():
         print(f"   [Error] Supervised script failed: {e}")
     print("-" * 60)
     print(f"Interpretation: Correlation serves as a reliable coincident indicator.")
-    print(f"The model achieves high precision but low recall for stress regime detection.")
-    print(f"This implies that high correlation is a sufficient but not necessary condition for market stress.")
+    print(
+        f"The model achieves high precision but low recall for stress regime detection."
+    )
+    print(
+        f"This implies that high correlation is a sufficient but not necessary condition for market stress."
+    )
     print(" ")
+
 
 if __name__ == "__main__":
     main()

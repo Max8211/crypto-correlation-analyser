@@ -1,9 +1,10 @@
 """
 Merge all raw CSV datasets into a single clean CSV file.
 
-The clean dataset will contain only the dates and 
+The clean dataset will contain only the dates and
 one column per cryptocurrency with daily price.
 """
+
 import pandas as pd
 import os
 
@@ -28,7 +29,7 @@ for coin in coins:
     df = pd.read_csv(file_path)
     df = df[["snapped_at", "price"]]
     df["snapped_at"] = pd.to_datetime(df["snapped_at"])
-    df.rename(columns={"price": coin}, inplace=True) # rename price column to coin name
+    df.rename(columns={"price": coin}, inplace=True)  # rename price column to coin name
     df.set_index("snapped_at", inplace=True)
     all_dfs.append(df)
 

@@ -1,7 +1,7 @@
 """
 Analyse returns by computing
 summary statistics, visualizing distributions, correlations, and rolling
-volatility. 
+volatility.
 Extreme outliers are clipped for visualization
 """
 
@@ -33,16 +33,19 @@ def summary_statistics(df: pd.DataFrame, output_path: str) -> None:
     stats.to_csv(output_path)
 
 
-def correlation_heatmap(df: pd.DataFrame, figures_folder: str, output_path: str) -> None:
+def correlation_heatmap(
+    df: pd.DataFrame, figures_folder: str, output_path: str
+) -> None:
     """Compute correlation matrix"""
     corr = df.corr()
     corr.to_csv(output_path)
 
 
-def plot_rolling_volatility(df: pd.DataFrame, figures_folder: str, window: int = 30) -> None:
+def plot_rolling_volatility(
+    df: pd.DataFrame, figures_folder: str, window: int = 30
+) -> None:
     """Plot rolling volatility with clipping and log scale for readability."""
     rolling_vol = df.rolling(window=window).std()
-    
 
 
 def main():
@@ -55,6 +58,7 @@ def main():
     correlation_heatmap(
         df, FIGURES_FOLDER, os.path.join(OUTPUTS_FOLDER, "correlation_matrix.csv")
     )
+
 
 if __name__ == "__main__":
     main()

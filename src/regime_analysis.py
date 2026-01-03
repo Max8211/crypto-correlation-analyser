@@ -16,7 +16,7 @@ OUTPUTS_DIR = "results/outputs"
 FIGURES_DIR = "results/figures"
 
 # volatility parameters
-VOL_WINDOW = 14 
+VOL_WINDOW = 14
 # Top 15% of downside volatility days (to absorb most historical crises)
 VOL_PERCENTILE = 0.85
 
@@ -49,14 +49,16 @@ def compute_downside_volatility(returns: pd.DataFrame, window: int) -> pd.Series
     market_ret = returns.mean(axis=1)
     neg_ret = market_ret.copy()
     neg_ret[neg_ret > 0] = 0
-  
+
     downside_vol = neg_ret.rolling(window=window).std()
     downside_vol.name = "downside_volatility"
     return downside_vol
 
+
 # Identify continuous periods of stress. use a 2-day minimum length to filter out one-day outliers
-def detect_stress_periods(stress_mask: pd.Series,
-                          min_len: int = 2) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
+def detect_stress_periods(
+    stress_mask: pd.Series, min_len: int = 2
+) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
     """
     Identify continuous periods where stress_mask is True.
     """
@@ -64,7 +66,7 @@ def detect_stress_periods(stress_mask: pd.Series,
     in_window = False
     start = None
     prev_ts = None
-   
+
     clean_series = stress_mask.dropna()
 
     for ts, is_stress in clean_series.items():
@@ -77,7 +79,7 @@ def detect_stress_periods(stress_mask: pd.Series,
                 windows.append((start, end))
             in_window = False
         prev_ts = ts
-       
+
     if in_window:
         end = prev_ts
         if (end - start).days + 1 >= min_len:
@@ -105,14 +107,16 @@ def main():
     # generate and save market index
     market_idx = build_market_index(returns)
     market_idx.to_csv(os.path.join(OUTPUTS_DIR, "market_index.csv"))
-  
+
     # Compute downside vol
     rolling_downside = compute_downside_volatility(returns, window=VOL_WINDOW)
     rolling_downside.to_csv(os.path.join(OUTPUTS_DIR, "market_downside_vol.csv"))
 
     # Determine Threshold (Expanding Window to ensure it evolves with the market)
-    dynamic_threshold = rolling_downside.expanding(min_periods=365).quantile(VOL_PERCENTILE)
-   
+    dynamic_threshold = rolling_downside.expanding(min_periods=365).quantile(
+        VOL_PERCENTILE
+    )
+
     # Create Boolean Mask
     is_stress_mask = rolling_downside > dynamic_threshold
     print(f"Computed dynamic volatility thresholds (Expanding Window).")
@@ -128,7 +132,7 @@ def main():
     # fill the gaps between stress windows with 'normal' labels
     all_dates = rolling_downside.dropna().index
     stress_intervals = [(s, e) for s, e in stress_windows]
-  
+
     if stress_intervals:
         # Initialize the tracker at the start of the dataset
         prev_end = all_dates[0] - pd.Timedelta(days=1)
@@ -139,17 +143,29 @@ def main():
                 normal_end = s - pd.Timedelta(days=1)
                 # label as normal if gap is valid
                 if normal_start <= normal_end:
-                     regimes_df.append({"kind": "normal", "start": normal_start, "end": normal_end})
+                    regimes_df.append(
+                        {"kind": "normal", "start": normal_start, "end": normal_end}
+                    )
             prev_end = e
         if prev_end < all_dates[-1]:
-            regimes_df.append({"kind": "normal", "start": prev_end + pd.Timedelta(days=1), "end": all_dates[-1]})
+            regimes_df.append(
+                {
+                    "kind": "normal",
+                    "start": prev_end + pd.Timedelta(days=1),
+                    "end": all_dates[-1],
+                }
+            )
     else:
-        #If No stress was ever detected, the entire dataset is labeled Normal
+        # If No stress was ever detected, the entire dataset is labeled Normal
         if not all_dates.empty:
-            regimes_df.append({"kind": "normal", "start": all_dates[0], "end": all_dates[-1]})
+            regimes_df.append(
+                {"kind": "normal", "start": all_dates[0], "end": all_dates[-1]}
+            )
 
     if regimes_df:
-        pd.DataFrame(regimes_df).to_csv(os.path.join(OUTPUTS_DIR, "detected_regimes.csv"), index=False)
+        pd.DataFrame(regimes_df).to_csv(
+            os.path.join(OUTPUTS_DIR, "detected_regimes.csv"), index=False
+        )
         print(f"Detected {len(stress_windows)} stress windows.")
 
     if not stress_windows:
@@ -171,7 +187,9 @@ def main():
     vol_normal = returns_valid[final_normal_mask].std()
     vol_stress = returns_valid[final_stress_mask].std()
 
-    print(f"Aggregate Stats: {final_normal_mask.sum()} Normal days, {final_stress_mask.sum()} Stress days.")
+    print(
+        f"Aggregate Stats: {final_normal_mask.sum()} Normal days, {final_stress_mask.sum()} Stress days."
+    )
 
     # Save Volatilities
     vol_stress.to_csv(os.path.join(OUTPUTS_DIR, "vol_stress.csv"))
@@ -180,18 +198,26 @@ def main():
     # Save Correlations
     corr_stress.to_csv(os.path.join(OUTPUTS_DIR, "corr_stress.csv"))
     corr_normal.to_csv(os.path.join(OUTPUTS_DIR, "corr_normal.csv"))
-  
+
     # Standard Heatmaps
-    plot_heatmap(corr_normal, "Correlation - Normal (Aggregate)", "corr_normal_heatmap.png")
-    plot_heatmap(corr_stress, "Correlation - Stress (Aggregate)", "corr_stress_heatmap.png")
-  
+    plot_heatmap(
+        corr_normal, "Correlation - Normal (Aggregate)", "corr_normal_heatmap.png"
+    )
+    plot_heatmap(
+        corr_stress, "Correlation - Stress (Aggregate)", "corr_stress_heatmap.png"
+    )
+
     # Diff Heatmap
     corr_diff = corr_stress - corr_normal
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(corr_diff, annot=False, cmap="coolwarm", center=0, vmin=-0.5, vmax=0.5, ax=ax)
+    sns.heatmap(
+        corr_diff, annot=False, cmap="coolwarm", center=0, vmin=-0.5, vmax=0.5, ax=ax
+    )
     ax.set_title("Correlation Difference (Stress - Normal)")
     fig.tight_layout()
-    fig.savefig(os.path.join(FIGURES_DIR, "corr_diff_heatmap.png"), dpi=300, bbox_inches="tight")
+    fig.savefig(
+        os.path.join(FIGURES_DIR, "corr_diff_heatmap.png"), dpi=300, bbox_inches="tight"
+    )
     plt.close(fig)
 
     print("Analysis complete.")

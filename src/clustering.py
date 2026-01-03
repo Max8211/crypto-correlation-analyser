@@ -19,20 +19,22 @@ FIGURES_DIR = "results/figures"
 os.makedirs(FIGURES_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
-#PATHS
+# PATHS
 RETURNS_PATH = os.path.join("results/data", "returns.csv")
 
 
 def load_returns(path: str) -> pd.DataFrame:
     """Load the returns.csv dataset."""
     if not os.path.exists(path):
-        raise FileNotFoundError(f"{path} not found. Ensure returns.csv is in results/data.")
+        raise FileNotFoundError(
+            f"{path} not found. Ensure returns.csv is in results/data."
+        )
     return pd.read_csv(path, index_col=0, parse_dates=True)
 
 
 def save_plot(fig, filename: str):
     path = os.path.join(FIGURES_DIR, filename)
-    fig.savefig(path, dpi=300, bbox_inches='tight')
+    fig.savefig(path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved figure: {path}")
 
@@ -54,7 +56,7 @@ def plot_mds_scatter(corr: pd.DataFrame, labels: pd.Series, explained_var: np.nd
     dist_matrix = 1 - corr.values
 
     # 2. Run MDS on the precomputed dissimilarity
-    mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
+    mds = MDS(n_components=2, dissimilarity="precomputed", random_state=42)
     coords = mds.fit_transform(dist_matrix)
     coords_df = pd.DataFrame(coords, index=corr.index, columns=["Dim1", "Dim2"])
 
@@ -62,16 +64,20 @@ def plot_mds_scatter(corr: pd.DataFrame, labels: pd.Series, explained_var: np.nd
     fig, ax = plt.subplots(figsize=(10, 7))
     unique_labels = np.unique(labels)
 
-    #colors
+    # colors
     tab10 = plt.cm.Paired(np.linspace(0, 1, len(unique_labels)))
 
     for i, cluster in enumerate(unique_labels):
         idx = labels == cluster
         cluster_coords = coords_df.loc[idx]
         ax.scatter(
-            cluster_coords["Dim1"], cluster_coords["Dim2"],
-            label=f"Cluster {cluster}", s=150,
-            color=tab10[i], alpha=0.85, edgecolors='k'
+            cluster_coords["Dim1"],
+            cluster_coords["Dim2"],
+            label=f"Cluster {cluster}",
+            s=150,
+            color=tab10[i],
+            alpha=0.85,
+            edgecolors="k",
         )
 
         # Annotate points
@@ -85,12 +91,16 @@ def plot_mds_scatter(corr: pd.DataFrame, labels: pd.Series, explained_var: np.nd
             y + offset_y,
             str(coin).capitalize(),
             fontsize=9,
-            weight='bold'
+            weight="bold",
         )
 
     ax.set_xlabel("Dimension 1")
     ax.set_ylabel("Dimension 2")
-    title_var = explained_var.sum() if isinstance(explained_var, (list, np.ndarray)) else explained_var
+    title_var = (
+        explained_var.sum()
+        if isinstance(explained_var, (list, np.ndarray))
+        else explained_var
+    )
     ax.set_title(f"Correlation Map")
     ax.legend()
     ax.grid(True, alpha=0.25)
@@ -110,9 +120,9 @@ def plot_silhouette(feature_df: pd.DataFrame, max_k: int = 6):
         labels = model.fit_predict(feature_df.values)
         score = silhouette_score(feature_df.values, labels)
         scores.append(score)
-    #Plot silhouette curve
+    # Plot silhouette curve
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(ks, scores, marker='o')
+    ax.plot(ks, scores, marker="o")
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Silhouette Score")
     ax.set_title("Optimal Cluster Count (Silhouette)")
@@ -121,11 +131,10 @@ def plot_silhouette(feature_df: pd.DataFrame, max_k: int = 6):
     save_plot(fig, "silhouette_score.png")
 
 
-
 def main():
     print("Loading Data...")
     try:
-        #Load data and calculate the static correlation matrix
+        # Load data and calculate the static correlation matrix
         returns = load_returns(RETURNS_PATH)
     except FileNotFoundError as e:
         print(f"[Error] {e}")
@@ -137,7 +146,7 @@ def main():
     order_path = os.path.join(OUTPUTS_DIR, "clustering_coin_order.csv")
     pd.Series(static_corr.columns).to_csv(order_path, index=False)
     print(f"Saved coin order to {order_path}")
-    
+
     # PCA: Reduce dimensions to capture major variance components
     print("Computing PCA Stats...")
     n_comp = min(2, min(returns.shape))
@@ -163,7 +172,6 @@ def main():
     plot_mds_scatter(static_corr, kmeans_labels, pca_stats.explained_variance_ratio_)
     plot_silhouette(static_corr)
 
-
     print("Clustering analysis complete.")
 
 
@@ -174,8 +182,14 @@ def load_clustering_outputs():
     sil_path = os.path.join(OUTPUTS_DIR, "silhouette_score.csv")
     kmeans_path = os.path.join(OUTPUTS_DIR, "kmeans_clusters.csv")
     # Dependency check: Automatically run analysis if files are missing
-    if not (os.path.exists(pca_path) and os.path.exists(sil_path) and os.path.exists(kmeans_path)):
-        print("\n[System] Clustering output files missing. Running src/clustering.py now...")
+    if not (
+        os.path.exists(pca_path)
+        and os.path.exists(sil_path)
+        and os.path.exists(kmeans_path)
+    ):
+        print(
+            "\n[System] Clustering output files missing. Running src/clustering.py now..."
+        )
         main()
         print("[System] Clustering complete. Resuming main script...\n")
 
