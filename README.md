@@ -5,12 +5,22 @@ How do correlations among major cryptocurrencies evolve through market regimes, 
 
 ## Setup and Usage
 
-### 1. Install Dependencies
+To ensure reproducibility, please use a virtual environment.
+
+### 1. Clone the repository
+git clone https://github.com/Max8211/crypto-correlation-analyser.git
+cd crypto-correlation-analyser
+
+### 2. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+### 3. Install Dependencies
 Run the following command to install the required software environment:
 
 pip install -r requirements.txt
 
-### 2. Execute Analysis
+### 4. Execute Analysis
 Run this command to regenerate all data processing, model training, and results:
 
 python main.py
